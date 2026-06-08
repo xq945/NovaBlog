@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login } from '../api/user'
@@ -9,33 +9,41 @@ const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
 
-const form = reactive({
-  username: '',
-  password: ''
-})
+const username = ref('')
+const password = ref('')
+const errors = ref({ username: '', password: '' })
 
-const rules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '用户名长度为3-20位', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, max: 20, message: '密码长度为8-20位', trigger: 'blur' }
-  ]
+const validate = () => {
+  errors.value = { username: '', password: '' }
+  let valid = true
+
+  if (!username.value.trim()) {
+    errors.value.username = '请输入用户名'
+    valid = false
+  } else if (username.value.length < 3 || username.value.length > 20) {
+    errors.value.username = '用户名长度为3-20位'
+    valid = false
+  }
+
+  if (!password.value) {
+    errors.value.password = '请输入密码'
+    valid = false
+  } else if (password.value.length < 8 || password.value.length > 20) {
+    errors.value.password = '密码长度为8-20位'
+    valid = false
+  }
+
+  return valid
 }
 
-const formRef = ref(null)
-
 const handleLogin = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
+  if (!validate()) return
 
   loading.value = true
   try {
     const res = await login({
-      username: form.username,
-      password: form.password
+      username: username.value,
+      password: password.value
     })
     if (res.code === 200) {
       ElMessage.success('登录成功')
@@ -58,45 +66,37 @@ const handleLogin = async () => {
       <h1 class="title">NovaBlog</h1>
       <p class="subtitle">欢迎回来</p>
 
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        class="login-form"
-        @keyup.enter="handleLogin"
-      >
-        <el-form-item prop="username">
-          <el-input
-            v-model="form.username"
+      <form class="login-form" @submit.prevent="handleLogin">
+        <div class="form-item">
+          <input
+            v-model="username"
+            type="text"
             placeholder="用户名"
-            size="large"
-            prefix-icon="User"
+            class="form-input"
+            @keyup.enter="handleLogin"
           />
-        </el-form-item>
+          <span v-if="errors.username" class="error-msg">{{ errors.username }}</span>
+        </div>
 
-        <el-form-item prop="password">
-          <el-input
-            v-model="form.password"
+        <div class="form-item">
+          <input
+            v-model="password"
             type="password"
             placeholder="密码"
-            size="large"
-            show-password
-            prefix-icon="Lock"
+            class="form-input"
+            @keyup.enter="handleLogin"
           />
-        </el-form-item>
+          <span v-if="errors.password" class="error-msg">{{ errors.password }}</span>
+        </div>
 
-        <el-form-item>
-          <el-button
-            type="primary"
-            size="large"
-            class="submit-btn"
-            :loading="loading"
-            @click="handleLogin"
-          >
-            登录
-          </el-button>
-        </el-form-item>
-      </el-form>
+        <button
+          type="submit"
+          class="submit-btn"
+          :disabled="loading"
+        >
+          {{ loading ? '登录中...' : '登录' }}
+        </button>
+      </form>
 
       <div class="footer">
         还没有账号？
@@ -118,34 +118,100 @@ const handleLogin = async () => {
 .login-card {
   width: 420px;
   padding: 48px 40px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
 }
 
 .title {
-  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  font-size: clamp(2rem, 5vw, 2.8rem);
   color: #fff;
   margin: 0 0 8px 0;
   text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
 .subtitle {
   color: rgba(255, 255, 255, 0.5);
   text-align: center;
-  margin: 0 0 32px 0;
-  font-size: 14px;
+  margin: 0 0 36px 0;
+  font-size: 15px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  font-size: 15px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.form-input:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.form-input:focus {
+  border-color: #409eff;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.error-msg {
+  color: #f56c6c;
+  font-size: 13px;
+  padding-left: 4px;
 }
 
 .submit-btn {
   width: 100%;
+  height: 48px;
   margin-top: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: #409eff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.submit-btn:hover {
+  background: #66b1ff;
+}
+
+.submit-btn:disabled {
+  background: rgba(64, 158, 255, 0.5);
+  cursor: not-allowed;
 }
 
 .footer {
   text-align: center;
-  margin-top: 24px;
+  margin-top: 28px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
 }
@@ -153,51 +219,10 @@ const handleLogin = async () => {
 .footer a {
   color: #409eff;
   text-decoration: none;
+  margin-left: 4px;
 }
 
 .footer a:hover {
   text-decoration: underline;
-}
-</style>
-
-<style>
-/* 覆盖 Element Plus 输入框变量 */
-.login-page .el-input {
-  --el-input-bg-color: rgba(255, 255, 255, 0.08);
-  --el-input-text-color: #fff;
-  --el-input-border-color: rgba(255, 255, 255, 0.2);
-  --el-input-hover-border-color: rgba(255, 255, 255, 0.4);
-  --el-input-focus-border-color: #409eff;
-  --el-input-placeholder-color: rgba(255, 255, 255, 0.4);
-  --el-input-icon-color: rgba(255, 255, 255, 0.5);
-}
-
-.login-page .el-input__wrapper {
-  background-color: var(--el-input-bg-color) !important;
-  box-shadow: 0 0 0 1px var(--el-input-border-color) inset !important;
-}
-
-.login-page .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--el-input-focus-border-color) inset !important;
-}
-
-.login-page .el-input__wrapper:hover {
-  box-shadow: 0 0 0 1px var(--el-input-hover-border-color) inset !important;
-}
-
-.login-page .el-input__inner {
-  color: var(--el-input-text-color) !important;
-}
-
-.login-page .el-input__inner::placeholder {
-  color: var(--el-input-placeholder-color) !important;
-}
-
-.login-page .el-input__icon {
-  color: var(--el-input-icon-color) !important;
-}
-
-.login-page .el-form-item__error {
-  color: #f56c6c;
 }
 </style>
