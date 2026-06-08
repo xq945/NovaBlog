@@ -48,7 +48,9 @@ const handleLogin = async () => {
     })
     if (res.code === 200) {
       ElMessage.success('登录成功')
-      userStore.userInfo = res.data
+      const { token, refreshToken, userInfo } = res.data
+      userStore.setToken(token, refreshToken)
+      userStore.setUserInfo(userInfo)
       router.push('/')
     } else {
       ElMessage.error(res.message || '登录失败')
@@ -167,6 +169,3 @@ const handleLogin = async () => {
 }
 </style>
 
-<style>
-/* 输入框样式已移至 styles/element-override.css，在 Element Plus CSS 之后加载 */
-</style>

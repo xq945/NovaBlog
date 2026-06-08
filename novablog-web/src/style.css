@@ -10,8 +10,7 @@
 html,
 body,
 #app {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
 }
 
 body {

@@ -217,6 +217,3 @@ const handleRegister = async () => {
 }
 </style>
 
-<style>
-/* 输入框样式已移至 styles/element-override.css，在 Element Plus CSS 之后加载 */
-</style>
