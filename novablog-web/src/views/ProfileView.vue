@@ -115,7 +115,14 @@ onMounted(() => {
       </div>
 
       <div class="article-table-wrapper" v-loading="loading">
-        <el-table :data="articles" style="width: 100%" v-if="articles.length > 0">
+        <div v-if="articles.length > 0" class="table-debug">共 {{ total }} 篇文章</div>
+
+        <el-table
+          v-if="articles.length > 0"
+          :data="articles"
+          style="width: 100%"
+          border
+        >
           <el-table-column prop="title" label="标题" min-width="200">
             <template #default="{ row }">
               <span class="article-title" @click="router.push(`/article/${row.id}`)">
@@ -123,7 +130,11 @@ onMounted(() => {
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="category.name" label="分类" width="120" />
+          <el-table-column label="分类" width="120">
+            <template #default="{ row }">
+              {{ row.category?.name || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="getStatusType(row.status)" size="small">
@@ -141,7 +152,7 @@ onMounted(() => {
               {{ formatTime(row.createTime) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
+          <el-table-column label="操作" width="140">
             <template #default="{ row }">
               <el-button type="primary" size="small" text @click="goToEdit(row.id)">
                 编辑
@@ -275,25 +286,58 @@ onMounted(() => {
   margin-top: 32px;
 }
 
+.table-debug {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
 :deep(.el-table) {
+  background: transparent !important;
+  --el-table-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.08);
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.08);
+  --el-table-tr-bg-color: transparent;
+  --el-table-text-color: rgba(255, 255, 255, 0.85);
+  --el-table-header-text-color: rgba(255, 255, 255, 0.9);
+  --el-table-border-color: rgba(255, 255, 255, 0.15);
+}
+
+:deep(.el-table__header-wrapper),
+:deep(.el-table__body-wrapper) {
   background: transparent;
-  --el-table-header-bg-color: rgba(255, 255, 255, 0.05);
-  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.05);
+}
+
+:deep(.el-table__inner-wrapper::before) {
+  display: none;
 }
 
 :deep(.el-table th) {
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600;
 }
 
 :deep(.el-table td) {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+:deep(.el-table tr) {
+  background: transparent !important;
 }
 
 :deep(.el-table tr:hover td) {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+:deep(.el-table--border) {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+:deep(.el-table--border .el-table__cell) {
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 :deep(.el-empty__description) {
