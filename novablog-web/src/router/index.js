@@ -54,10 +54,7 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('token')
     if (!token) {
-      window.dispatchEvent(new CustomEvent('show-login', {
-        detail: { message: '请先登录' }
-      }))
-      return next(false)
+      return next('/login')
     }
   }
   next()

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.mapper.CommentMapper">
+
+    <!-- 评论VO映射 -->
+    <resultMap id="commentVOResultMap" type="com.novablog.vo.CommentVO">
+        <id property="id" column="id"/>
+        <result property="content" column="content"/>
+        <result property="articleId" column="article_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="createTime" column="create_time"/>
+        <!-- 评论者信息（若用户被物理删除，JOIN 失败，notNullColumn 确保为 null） -->
+        <association property="user" javaType="com.novablog.vo.UserVO" notNullColumn="uid">
+            <id property="id" column="uid"/>
+            <result property="nickname" column="unickname"/>
+            <result property="avatar" column="uavatar"/>
+        </association>
+        <!-- 被回复者信息（reply_to_id 可为 null，notNullColumn 避免创建空对象） -->
+        <association property="replyToUser" javaType="com.novablog.vo.UserVO" notNullColumn="ruid">
+            <id property="id" column="ruid"/>
+            <result property="nickname" column="runickname"/>
+        </association>
+    </resultMap>
+
+    <!-- 插入评论 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO comment (content, article_id, user_id, parent_id, reply_to_id)
+        VALUES (#{content}, #{articleId}, #{userId}, #{parentId}, #{replyToId})
+    </insert>
+
+    <!-- 根据ID查询评论（实体，用于业务校验） -->
+    <select id="selectById" resultType="com.novablog.entity.Comment">
+        SELECT * FROM comment WHERE id = #{id} LIMIT 1
+    </select>
+
+    <!-- 分页查询某文章下的一级评论（JOIN user 表获取评论者信息） -->
+    <select id="selectTopLevelByArticleId" resultMap="commentVOResultMap">
+        SELECT
+            c.id, c.content, c.article_id, c.user_id, c.parent_id,
+            c.reply_to_id, c.status, c.create_time,
+            u.id as uid, u.nickname as unickname, u.avatar as uavatar,
+            ru.id as ruid, ru.nickname as runickname
+        FROM comment c
+        LEFT JOIN user u ON c.user_id = u.id
+        LEFT JOIN user ru ON c.reply_to_id = ru.id
+        WHERE c.article_id = #{articleId}
+          AND c.status = 1
+          AND c.parent_id IS NULL
+        ORDER BY c.create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 统计某文章下的一级评论总数 -->
+    <select id="countTopLevelByArticleId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM comment
+        WHERE article_id = #{articleId}
+          AND status = 1
+          AND parent_id IS NULL
+    </select>
+
+    <!-- 批量查询一级评论下的二级回复 -->
+    <select id="selectRepliesByParentIds" resultMap="commentVOResultMap">
+        SELECT
+            c.id, c.content, c.article_id, c.user_id, c.parent_id,
+            c.reply_to_id, c.status, c.create_time,
+            u.id as uid, u.nickname as unickname, u.avatar as uavatar,
+            ru.id as ruid, ru.nickname as runickname
+        FROM comment c
+        LEFT JOIN user u ON c.user_id = u.id
+        LEFT JOIN user ru ON c.reply_to_id = ru.id
+        WHERE c.parent_id IN
+        <foreach collection="parentIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+          AND c.status = 1
+        ORDER BY c.create_time ASC
+    </select>
+
+    <!-- 更新评论状态 -->
+    <update id="updateStatus">
+        UPDATE comment SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <!-- 根据 parentId 批量更新状态（级联删除） -->
+    <update id="batchUpdateStatusByParentId">
+        UPDATE comment SET status = #{status}
+        WHERE parent_id = #{parentId} AND status = 1
+    </update>
+
+</mapper>

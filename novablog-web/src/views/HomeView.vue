@@ -1,8 +1,7 @@
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { login, register } from '../api/user'
 import { getArticleList, deleteArticle } from '../api/article'
 import { getCategoryList } from '../api/category'
 import { useUserStore } from '../stores'
@@ -117,165 +116,6 @@ const formatTime = (time) => {
   })
 }
 
-// ========== 登录弹窗（保留原有逻辑）==========
-const loginDialogVisible = ref(false)
-const loginLoading = ref(false)
-const loginFormRef = ref(null)
-
-const loginForm = reactive({
-  username: '',
-  password: ''
-})
-
-const loginRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '用户名长度为3-20位', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, max: 20, message: '密码长度为8-20位', trigger: 'blur' }
-  ]
-}
-
-const openLoginDialog = () => {
-  loginDialogVisible.value = true
-}
-
-const handleLogin = async () => {
-  const valid = await loginFormRef.value.validate().catch(() => false)
-  if (!valid) return
-
-  loginLoading.value = true
-  try {
-    const res = await login({
-      username: loginForm.username,
-      password: loginForm.password
-    })
-    if (res.code === 200) {
-      const { token, refreshToken, userInfo } = res.data
-      userStore.setToken(token, refreshToken)
-      userStore.setUserInfo(userInfo)
-      ElMessage.success('登录成功')
-      loginDialogVisible.value = false
-      loginForm.username = ''
-      loginForm.password = ''
-    } else {
-      ElMessage.error(res.message || '登录失败')
-    }
-  } catch (error) {
-    ElMessage.error(error.response?.data?.message || '登录失败')
-  } finally {
-    loginLoading.value = false
-  }
-}
-
-const handleLoginDialogClose = () => {
-  loginForm.username = ''
-  loginForm.password = ''
-  loginFormRef.value?.resetFields()
-}
-
-// ========== 注册弹窗（保留原有逻辑）==========
-const registerDialogVisible = ref(false)
-const registerLoading = ref(false)
-const registerFormRef = ref(null)
-
-const registerForm = reactive({
-  username: '',
-  nickname: '',
-  password: '',
-  confirmPassword: ''
-})
-
-const validatePassword = (rule, value, callback) => {
-  const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]).{8,20}$/
-  if (!pattern.test(value)) {
-    callback(new Error('密码必须为8-20位，且同时包含大写字母、小写字母、数字、特殊符号'))
-  } else {
-    callback()
-  }
-}
-
-const validateConfirmPassword = (rule, value, callback) => {
-  if (value !== registerForm.password) {
-    callback(new Error('两次输入的密码不一致'))
-  } else {
-    callback()
-  }
-}
-
-const registerRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '用户名长度为3-20位', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字、下划线', trigger: 'blur' }
-  ],
-  nickname: [
-    { required: true, message: '请输入昵称', trigger: 'blur' },
-    { min: 1, max: 20, message: '昵称长度为1-20位', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { validator: validatePassword, trigger: 'blur' }
-  ],
-  confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
-    { validator: validateConfirmPassword, trigger: 'blur' }
-  ]
-}
-
-const openRegisterDialog = () => {
-  registerDialogVisible.value = true
-}
-
-const handleRegister = async () => {
-  const valid = await registerFormRef.value.validate().catch(() => false)
-  if (!valid) return
-
-  registerLoading.value = true
-  try {
-    const res = await register({
-      username: registerForm.username,
-      nickname: registerForm.nickname,
-      password: registerForm.password
-    })
-    if (res.code === 200) {
-      ElMessage.success('注册成功，请登录')
-      registerDialogVisible.value = false
-      registerForm.username = ''
-      registerForm.nickname = ''
-      registerForm.password = ''
-      registerForm.confirmPassword = ''
-      loginDialogVisible.value = true
-    } else {
-      ElMessage.error(res.message || '注册失败')
-    }
-  } catch (error) {
-    ElMessage.error(error.response?.data?.message || '注册失败')
-  } finally {
-    registerLoading.value = false
-  }
-}
-
-const handleRegisterDialogClose = () => {
-  registerForm.username = ''
-  registerForm.nickname = ''
-  registerForm.password = ''
-  registerForm.confirmPassword = ''
-  registerFormRef.value?.resetFields()
-}
-
-const switchToLogin = () => {
-  registerDialogVisible.value = false
-  loginDialogVisible.value = true
-}
-
-const switchToRegister = () => {
-  loginDialogVisible.value = false
-  registerDialogVisible.value = true
-}
-
 // ========== 退出登录 ==========
 const handleLogout = () => {
   userStore.clearToken()
@@ -283,22 +123,12 @@ const handleLogout = () => {
   window.location.reload()
 }
 
-// ========== 全局事件监听 ==========
-const handleShowLogin = (event) => {
-  loginDialogVisible.value = true
-  if (event.detail?.message) {
-    ElMessage.warning(event.detail.message)
-  }
-}
-
 onMounted(() => {
-  window.addEventListener('show-login', handleShowLogin)
   fetchCategories()
   fetchArticles()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('show-login', handleShowLogin)
   if (searchTimer) clearTimeout(searchTimer)
 })
 </script>
@@ -320,8 +150,8 @@ onUnmounted(() => {
           <span class="nav-link" @click="handleLogout">退出</span>
         </template>
         <template v-else>
-          <span class="nav-link" @click="openLoginDialog">登录</span>
-          <span class="nav-link nav-btn" @click="openRegisterDialog">注册</span>
+          <span class="nav-link" @click="router.push('/login')">登录</span>
+          <span class="nav-link nav-btn" @click="router.push('/register')">注册</span>
         </template>
       </div>
     </nav>
@@ -428,128 +258,6 @@ onUnmounted(() => {
         />
       </div>
     </div>
-
-    <!-- 登录弹窗 -->
-    <el-dialog
-      v-model="loginDialogVisible"
-      title="用户登录"
-      width="420px"
-      align-center
-      :close-on-click-modal="false"
-      @closed="handleLoginDialogClose"
-      class="auth-dialog"
-    >
-      <el-form
-        ref="loginFormRef"
-        :model="loginForm"
-        :rules="loginRules"
-        @keyup.enter="handleLogin"
-      >
-        <el-form-item prop="username">
-          <el-input
-            v-model="loginForm.username"
-            placeholder="用户名"
-            size="large"
-            prefix-icon="User"
-          />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            v-model="loginForm.password"
-            type="password"
-            placeholder="密码"
-            size="large"
-            show-password
-            prefix-icon="Lock"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button
-            type="primary"
-            size="large"
-            class="dialog-submit-btn"
-            :loading="loginLoading"
-            @click="handleLogin"
-          >
-            登录
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <div class="dialog-footer">
-        还没有账号？
-        <span class="link-text" @click="switchToRegister">立即注册</span>
-      </div>
-    </el-dialog>
-
-    <!-- 注册弹窗 -->
-    <el-dialog
-      v-model="registerDialogVisible"
-      title="创建账号"
-      width="420px"
-      align-center
-      :close-on-click-modal="false"
-      @closed="handleRegisterDialogClose"
-      class="auth-dialog"
-    >
-      <el-form
-        ref="registerFormRef"
-        :model="registerForm"
-        :rules="registerRules"
-        @keyup.enter="handleRegister"
-      >
-        <el-form-item prop="username">
-          <el-input
-            v-model="registerForm.username"
-            placeholder="用户名（3-20位字母/数字/下划线）"
-            size="large"
-            prefix-icon="User"
-          />
-        </el-form-item>
-        <el-form-item prop="nickname">
-          <el-input
-            v-model="registerForm.nickname"
-            placeholder="昵称（1-20位）"
-            size="large"
-            prefix-icon="Avatar"
-          />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            v-model="registerForm.password"
-            type="password"
-            placeholder="密码（8-20位，需包含大小写+数字+特殊符号）"
-            size="large"
-            show-password
-            prefix-icon="Lock"
-          />
-        </el-form-item>
-        <el-form-item prop="confirmPassword">
-          <el-input
-            v-model="registerForm.confirmPassword"
-            type="password"
-            placeholder="确认密码"
-            size="large"
-            show-password
-            prefix-icon="Key"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button
-            type="primary"
-            size="large"
-            class="dialog-submit-btn"
-            :loading="registerLoading"
-            @click="handleRegister"
-          >
-            注册
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <div class="dialog-footer">
-        已有账号？
-        <span class="link-text" @click="switchToLogin">立即登录</span>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
@@ -727,26 +435,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 32px;
-}
-
-/* 弹窗 */
-.dialog-submit-btn {
-  width: 100%;
-}
-
-.dialog-footer {
-  text-align: center;
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.5);
-}
-
-.link-text {
-  color: #409eff;
-  cursor: pointer;
-}
-
-.link-text:hover {
-  text-decoration: underline;
 }
 </style>
 

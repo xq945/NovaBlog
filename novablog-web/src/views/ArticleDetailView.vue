@@ -1,14 +1,18 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getArticleDetail } from '../api/article'
+import { publishComment, getCommentList, deleteComment } from '../api/comment'
+import { useUserStore } from '../stores'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
+// ========== 文章详情 ==========
 const article = ref(null)
 const loading = ref(false)
 
@@ -58,8 +62,142 @@ const formatTime = (time) => {
   })
 }
 
+// ========== 评论区域 ==========
+const comments = ref([])
+const commentTotal = ref(0)
+const commentPage = ref(1)
+const commentPageSize = ref(10)
+const commentContent = ref('')
+const replyingTo = ref(null)
+const commentLoading = ref(false)
+const publishing = ref(false)
+
+const fetchComments = async () => {
+  const articleId = route.params.id
+  if (!articleId) return
+
+  commentLoading.value = true
+  try {
+    const res = await getCommentList({
+      articleId,
+      page: commentPage.value,
+      size: commentPageSize.value
+    })
+    if (res.code === 200) {
+      comments.value = res.data.list || []
+      commentTotal.value = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载评论失败', error)
+  } finally {
+    commentLoading.value = false
+  }
+}
+
+const handlePublish = async () => {
+  const content = commentContent.value.trim()
+  if (!content) return
+
+  const articleId = Number(route.params.id)
+  if (!articleId) return
+
+  publishing.value = true
+  try {
+    const res = await publishComment({
+      articleId,
+      content,
+      parentId: replyingTo.value ? replyingTo.value.parentId || replyingTo.value.id : null,
+      replyToId: replyingTo.value ? replyingTo.value.user?.id : null
+    })
+
+    if (res.code === 200) {
+      ElMessage.success('发表成功')
+      commentContent.value = ''
+      replyingTo.value = null
+      // 一级评论回到第一页刷新，回复直接插入
+      if (!replyingTo.value) {
+        commentPage.value = 1
+        await fetchComments()
+      } else {
+        // 找到对应的一级评论，push到children
+        const parentId = replyingTo.value.parentId || replyingTo.value.id
+        const parent = comments.value.find(c => c.id === parentId)
+        if (parent) {
+          if (!parent.children) parent.children = []
+          parent.children.push(res.data)
+        }
+        commentContent.value = ''
+        replyingTo.value = null
+      }
+    } else {
+      ElMessage.error(res.message || '发表失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '发表失败')
+  } finally {
+    publishing.value = false
+  }
+}
+
+const handleReply = (comment) => {
+  replyingTo.value = comment
+  commentContent.value = ''
+}
+
+const cancelReply = () => {
+  replyingTo.value = null
+  commentContent.value = ''
+}
+
+const handleDelete = async (comment) => {
+  try {
+    await ElMessageBox.confirm('确定删除这条评论吗？', '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const res = await deleteComment(comment.id)
+    if (res.code === 200) {
+      ElMessage.success('删除成功')
+      if (comment.parentId === null) {
+        // 一级评论：重新加载当前页
+        if (comments.value.length === 1 && commentPage.value > 1) {
+          commentPage.value--
+        }
+        await fetchComments()
+      } else {
+        // 二级回复：从children中过滤
+        const parent = comments.value.find(c => c.id === comment.parentId)
+        if (parent && parent.children) {
+          parent.children = parent.children.filter(r => r.id !== comment.id)
+        }
+      }
+    } else {
+      ElMessage.error(res.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
+}
+
+const handlePageChange = () => {
+  fetchComments()
+}
+
+const canDelete = (comment) => {
+  if (!userStore.userInfo || !comment.user) return false
+  return userStore.userInfo.id === comment.user.id
+      || userStore.userInfo.role === 'ADMIN'
+}
+
+const canReply = () => !!userStore.userInfo
+
 onMounted(() => {
   fetchArticle()
+  fetchComments()
 })
 </script>
 
@@ -106,6 +244,115 @@ onMounted(() => {
       </template>
 
       <el-empty v-else-if="!loading" description="文章不存在" />
+    </div>
+
+    <!-- 评论区域 -->
+    <div class="comment-section">
+      <h2 class="comment-title">评论</h2>
+
+      <!-- 发表评论框 -->
+      <div class="comment-input-area">
+        <template v-if="!userStore.userInfo">
+          <div class="login-tip">
+            <span>登录后参与讨论</span>
+            <el-button type="primary" size="small" @click="router.push('/login')">登录</el-button>
+            <el-button size="small" @click="router.push('/register')">注册</el-button>
+          </div>
+        </template>
+        <template v-else>
+          <div v-if="replyingTo" class="reply-status">
+            <span>回复 @{{ replyingTo.user?.nickname || '匿名' }}</span>
+            <el-button type="info" size="small" text @click="cancelReply">取消回复</el-button>
+          </div>
+          <el-input
+            v-model="commentContent"
+            type="textarea"
+            :rows="3"
+            :maxlength="500"
+            show-word-limit
+            :placeholder="replyingTo ? `回复 @${replyingTo.user?.nickname || '匿名'}...` : '写下你的评论...'"
+          />
+          <div class="comment-actions">
+            <el-button
+              type="primary"
+              :disabled="!commentContent.trim() || publishing"
+              :loading="publishing"
+              @click="handlePublish"
+            >
+              发表
+            </el-button>
+          </div>
+        </template>
+      </div>
+
+      <!-- 评论列表 -->
+      <div v-loading="commentLoading" class="comment-list">
+        <el-empty v-if="!commentLoading && comments.length === 0" description="暂无评论，来抢沙发吧~" />
+
+        <div
+          v-for="comment in comments"
+          :key="comment.id"
+          class="comment-item"
+        >
+          <!-- 一级评论 -->
+          <div class="comment-main">
+            <el-avatar :size="36" :src="comment.user?.avatar">
+              <el-icon><User /></el-icon>
+            </el-avatar>
+            <div class="comment-body">
+              <div class="comment-header">
+                <span class="comment-author">{{ comment.user?.nickname || '匿名' }}</span>
+                <span class="comment-time">{{ formatTime(comment.createTime) }}</span>
+              </div>
+              <div class="comment-text">{{ comment.content }}</div>
+              <div class="comment-footer">
+                <span v-if="canReply() && comment.user" class="comment-action" @click="handleReply(comment)">回复</span>
+                <span v-if="canDelete(comment)" class="comment-action delete" @click="handleDelete(comment)">删除</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 二级回复 -->
+          <div v-if="comment.children && comment.children.length > 0" class="reply-list">
+            <div
+              v-for="reply in comment.children"
+              :key="reply.id"
+              class="reply-item"
+            >
+              <el-avatar :size="28" :src="reply.user?.avatar">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+              <div class="reply-body">
+                <div class="reply-header">
+                  <span class="reply-author">{{ reply.user?.nickname || '匿名' }}</span>
+                  <span v-if="reply.replyToUser" class="reply-to">
+                    回复 @{{ reply.replyToUser.nickname }}
+                  </span>
+                  <span class="reply-time">{{ formatTime(reply.createTime) }}</span>
+                </div>
+                <div class="reply-text">{{ reply.content }}</div>
+                <div class="reply-footer">
+                  <span v-if="canReply() && reply.user" class="comment-action" @click="handleReply(reply)">回复</span>
+                  <span v-if="canDelete(reply)" class="comment-action delete" @click="handleDelete(reply)">删除</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分页 -->
+      <div v-if="commentTotal > 0" class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="commentPage"
+          v-model:page-size="commentPageSize"
+          :total="commentTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          @current-change="handlePageChange"
+          @size-change="handlePageChange"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -288,5 +535,231 @@ onMounted(() => {
 .article-content :deep(th) {
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
+}
+
+/* ========== 评论区域 ========== */
+.comment-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+.comment-title {
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 发表评论框 */
+.comment-input-area {
+  margin-bottom: 24px;
+}
+
+.login-tip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reply-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #409eff;
+  font-size: 14px;
+}
+
+.comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 评论列表 */
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.comment-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.comment-main {
+  display: flex;
+  gap: 12px;
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.comment-author {
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.comment-time {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.comment-text {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-footer {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.comment-action {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.comment-action:hover {
+  color: #409eff;
+}
+
+.comment-action.delete:hover {
+  color: #f56c6c;
+}
+
+/* 二级回复 */
+.reply-list {
+  margin-top: 12px;
+  margin-left: 48px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reply-item {
+  display: flex;
+  gap: 10px;
+}
+
+.reply-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.reply-author {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.reply-to {
+  color: #409eff;
+  font-size: 12px;
+}
+
+.reply-time {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.reply-text {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reply-footer {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* 分页 */
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+</style>
+
+<style>
+/* 覆盖 Element Plus 分页在暗色背景下的样式 */
+.comment-section .el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-text-color: rgba(255, 255, 255, 0.7);
+  --el-pagination-button-color: rgba(255, 255, 255, 0.7);
+}
+
+.comment-section .el-pagination .el-pager li {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.comment-section .el-pagination .el-pager li.is-active {
+  background: #409eff;
+  border-color: #409eff;
+}
+
+.comment-section .el-pagination .btn-prev,
+.comment-section .el-pagination .btn-next {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 覆盖输入框样式 */
+.comment-section .el-textarea__inner {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.comment-section .el-textarea__inner::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.comment-section .el-input__count {
+  color: rgba(255, 255, 255, 0.5);
+  background: transparent;
 }
 </style>

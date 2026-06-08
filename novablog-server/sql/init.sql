@@ -98,3 +98,20 @@ CREATE TABLE `article_tag` (
     PRIMARY KEY (`article_id`, `tag_id`),
     KEY `idx_tag_id` (`tag_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章-标签关联表';
+
+-- 6. 评论表
+DROP TABLE IF EXISTS `comment`;
+CREATE TABLE `comment` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `content` VARCHAR(500) NOT NULL COMMENT '评论内容',
+    `article_id` BIGINT NOT NULL COMMENT '文章ID',
+    `user_id` BIGINT NOT NULL COMMENT '评论者ID',
+    `parent_id` BIGINT DEFAULT NULL COMMENT '父评论ID（一级评论为NULL）',
+    `reply_to_id` BIGINT DEFAULT NULL COMMENT '被回复用户ID',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-正常 0-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_comment_article_id` (`article_id`),
+    KEY `idx_comment_parent_id` (`parent_id`),
+    KEY `idx_comment_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论表';

@@ -1,0 +1,29 @@
+/* 登录/注册页输入框样式覆盖
+ * 放在 Element Plus CSS 之后加载，确保优先级最高
+ */
+
+.login-page .el-input__wrapper,
+.register-page .el-input__wrapper {
+  background-color: #000 !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
+}
+
+.login-page .el-input__wrapper.is-focus,
+.register-page .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px #409eff inset !important;
+}
+
+.login-page .el-input__wrapper:hover,
+.register-page .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) inset !important;
+}
+
+.login-page .el-input__inner,
+.register-page .el-input__inner {
+  color: #fff !important;
+}
+
+.login-page .el-input__inner::placeholder,
+.register-page .el-input__inner::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}

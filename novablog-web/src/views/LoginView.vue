@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login } from '../api/user'
@@ -9,41 +9,42 @@ const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
 
-const username = ref('')
-const password = ref('')
-const errors = ref({ username: '', password: '' })
+/**
+ * 登录表单数据
+ */
+const form = reactive({
+  username: '',
+  password: ''
+})
 
-const validate = () => {
-  errors.value = { username: '', password: '' }
-  let valid = true
-
-  if (!username.value.trim()) {
-    errors.value.username = '请输入用户名'
-    valid = false
-  } else if (username.value.length < 3 || username.value.length > 20) {
-    errors.value.username = '用户名长度为3-20位'
-    valid = false
-  }
-
-  if (!password.value) {
-    errors.value.password = '请输入密码'
-    valid = false
-  } else if (password.value.length < 8 || password.value.length > 20) {
-    errors.value.password = '密码长度为8-20位'
-    valid = false
-  }
-
-  return valid
+/**
+ * 表单校验规则
+ */
+const rules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度为3-20位', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 8, max: 20, message: '密码长度为8-20位', trigger: 'blur' }
+  ]
 }
 
+const formRef = ref(null)
+
+/**
+ * 登录提交
+ */
 const handleLogin = async () => {
-  if (!validate()) return
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
 
   loading.value = true
   try {
     const res = await login({
-      username: username.value,
-      password: password.value
+      username: form.username,
+      password: form.password
     })
     if (res.code === 200) {
       ElMessage.success('登录成功')
@@ -66,37 +67,43 @@ const handleLogin = async () => {
       <h1 class="title">NovaBlog</h1>
       <p class="subtitle">欢迎回来</p>
 
-      <form class="login-form" @submit.prevent="handleLogin">
-        <div class="form-item">
-          <input
-            v-model="username"
-            type="text"
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        class="login-form"
+        @keyup.enter="handleLogin"
+      >
+        <el-form-item prop="username">
+          <el-input
+            v-model="form.username"
             placeholder="用户名"
-            class="form-input"
-            @keyup.enter="handleLogin"
+            size="large"
           />
-          <span v-if="errors.username" class="error-msg">{{ errors.username }}</span>
-        </div>
+        </el-form-item>
 
-        <div class="form-item">
-          <input
-            v-model="password"
+        <el-form-item prop="password">
+          <el-input
+            v-model="form.password"
             type="password"
             placeholder="密码"
-            class="form-input"
-            @keyup.enter="handleLogin"
+            size="large"
+            show-password
           />
-          <span v-if="errors.password" class="error-msg">{{ errors.password }}</span>
-        </div>
+        </el-form-item>
 
-        <button
-          type="submit"
-          class="submit-btn"
-          :disabled="loading"
-        >
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-      </form>
+        <el-form-item>
+          <el-button
+            type="primary"
+            size="large"
+            class="submit-btn"
+            :loading="loading"
+            @click="handleLogin"
+          >
+            登录
+          </el-button>
+        </el-form-item>
+      </el-form>
 
       <div class="footer">
         还没有账号？
@@ -118,100 +125,34 @@ const handleLogin = async () => {
 .login-card {
   width: 420px;
   padding: 48px 40px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .title {
-  font-size: clamp(2rem, 5vw, 2.8rem);
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
   color: #fff;
   margin: 0 0 8px 0;
   text-align: center;
-  font-weight: 700;
-  letter-spacing: -0.5px;
 }
 
 .subtitle {
   color: rgba(255, 255, 255, 0.5);
   text-align: center;
-  margin: 0 0 36px 0;
-  font-size: 15px;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.form-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-input {
-  width: 100%;
-  height: 48px;
-  padding: 0 16px;
-  font-size: 15px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  outline: none;
-  box-sizing: border-box;
-  transition: all 0.2s;
-}
-
-.form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.form-input:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.form-input:focus {
-  border-color: #409eff;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.error-msg {
-  color: #f56c6c;
-  font-size: 13px;
-  padding-left: 4px;
+  margin: 0 0 32px 0;
+  font-size: 14px;
 }
 
 .submit-btn {
   width: 100%;
-  height: 48px;
   margin-top: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #fff;
-  background: #409eff;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.submit-btn:hover {
-  background: #66b1ff;
-}
-
-.submit-btn:disabled {
-  background: rgba(64, 158, 255, 0.5);
-  cursor: not-allowed;
 }
 
 .footer {
   text-align: center;
-  margin-top: 28px;
+  margin-top: 24px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
 }
@@ -219,10 +160,13 @@ const handleLogin = async () => {
 .footer a {
   color: #409eff;
   text-decoration: none;
-  margin-left: 4px;
 }
 
 .footer a:hover {
   text-decoration: underline;
 }
+</style>
+
+<style>
+/* 输入框样式已移至 styles/element-override.css，在 Element Plus CSS 之后加载 */
 </style>
