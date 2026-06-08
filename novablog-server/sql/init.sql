@@ -55,6 +55,19 @@ CREATE TABLE `tag` (
     UNIQUE KEY `uk_tag_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签表';
 
+-- 初始化常用标签
+INSERT INTO `tag` (`name`) VALUES
+('Java'),
+('SpringBoot'),
+('Vue'),
+('JavaScript'),
+('MySQL'),
+('Redis'),
+('Docker'),
+('Linux'),
+('设计模式'),
+('读书笔记');
+
 -- 4. 文章表
 DROP TABLE IF EXISTS `article`;
 CREATE TABLE `article` (
