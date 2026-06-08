@@ -33,6 +33,12 @@ const routes = [
     name: 'ArticleEdit',
     component: () => import('../views/ArticleEditView.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/ProfileView.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

@@ -313,6 +313,9 @@ onUnmounted(() => {
           <span class="nav-link" @click="goToCreate">
             <el-icon><Plus /></el-icon> 写文章
           </span>
+          <span class="nav-link" @click="router.push('/profile')">
+            <el-icon><Document /></el-icon> 我的文章
+          </span>
           <span class="user-name">{{ userStore.userInfo.nickname }}</span>
           <span class="nav-link" @click="handleLogout">退出</span>
         </template>
