@@ -196,16 +196,32 @@ const handleRegister = async () => {
 }
 
 .register-form :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  background: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
+}
+
+.register-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #409eff inset !important;
+}
+
+.register-form :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) inset !important;
 }
 
 .register-form :deep(.el-input__inner) {
-  color: #fff;
+  color: #fff !important;
 }
 
 .register-form :deep(.el-input__inner::placeholder) {
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.register-form :deep(.el-input__icon) {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.register-form :deep(.el-form-item__error) {
+  color: #f56c6c;
 }
 
 .submit-btn {
