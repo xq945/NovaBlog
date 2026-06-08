@@ -2,8 +2,11 @@ package com.novablog.controller;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
+import com.novablog.common.UserContext;
+import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.CommentDTO;
 import com.novablog.service.CommentService;
+import com.novablog.vo.AdminCommentVO;
 import com.novablog.vo.CommentVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -57,5 +60,29 @@ public class CommentController {
     public Result<Void> delete(@PathVariable Long id) {
         commentService.delete(id);
         return Result.success();
+    }
+
+    /**
+     * 管理员查询所有评论
+     *
+     * @param articleId 文章ID筛选
+     * @param page      页码
+     * @param size      每页数量
+     * @return 分页结果
+     */
+    @GetMapping("/admin/list")
+    public Result<PageResult<AdminCommentVO>> adminList(
+            @RequestParam(required = false) Long articleId,
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer size) {
+        checkAdmin();
+        PageResult<AdminCommentVO> result = commentService.findAdminList(articleId, page, size);
+        return Result.success(result);
+    }
+
+    private void checkAdmin() {
+        if (!"ADMIN".equals(UserContext.getRole())) {
+            throw new BusinessException(403, "无权访问");
+        }
     }
 }

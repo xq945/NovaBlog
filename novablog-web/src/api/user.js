@@ -49,3 +49,27 @@ export function updateProfile(data) {
     data
   })
 }
+
+/**
+ * 管理员查询用户列表
+ * @param {Object} params - { page, size }
+ */
+export function getAdminUserList(params) {
+  return request({
+    url: '/user/admin/list',
+    method: 'get',
+    params
+  })
+}
+
+/**
+ * 管理员修改用户状态
+ * @param {Object} data - { userId, status }
+ */
+export function updateUserStatus(data) {
+  return request({
+    url: '/user/admin/status',
+    method: 'put',
+    data
+  })
+}

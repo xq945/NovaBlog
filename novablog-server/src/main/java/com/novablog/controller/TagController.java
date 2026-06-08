@@ -1,12 +1,13 @@
 package com.novablog.controller;
 
 import com.novablog.common.Result;
+import com.novablog.common.UserContext;
+import com.novablog.common.exception.BusinessException;
+import com.novablog.dto.TagDTO;
 import com.novablog.entity.Tag;
 import com.novablog.service.TagService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -28,5 +29,59 @@ public class TagController {
     @GetMapping("/list")
     public Result<List<Tag>> list() {
         return Result.success(tagService.findAll());
+    }
+
+    /**
+     * 创建标签
+     *
+     * @param dto 标签参数
+     * @return 标签ID
+     */
+    @PostMapping
+    public Result<Long> create(@RequestBody TagDTO dto) {
+        checkAdmin();
+        if (dto.getName() == null || dto.getName().isEmpty() || dto.getName().length() > 20) {
+            throw new BusinessException("标签名称长度必须为1-20位");
+        }
+        Long id = tagService.create(dto.getName());
+        return Result.success(id);
+    }
+
+    /**
+     * 修改标签
+     *
+     * @param dto 标签参数
+     * @return 成功结果
+     */
+    @PutMapping
+    public Result<Void> update(@RequestBody TagDTO dto) {
+        checkAdmin();
+        if (dto.getId() == null) {
+            throw new BusinessException("标签ID不能为空");
+        }
+        if (dto.getName() == null || dto.getName().isEmpty() || dto.getName().length() > 20) {
+            throw new BusinessException("标签名称长度必须为1-20位");
+        }
+        tagService.update(dto.getId(), dto.getName());
+        return Result.success();
+    }
+
+    /**
+     * 删除标签
+     *
+     * @param id 标签ID
+     * @return 成功结果
+     */
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Long id) {
+        checkAdmin();
+        tagService.delete(id);
+        return Result.success();
+    }
+
+    private void checkAdmin() {
+        if (!"ADMIN".equals(UserContext.getRole())) {
+            throw new BusinessException(403, "无权访问");
+        }
     }
 }

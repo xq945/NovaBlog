@@ -32,6 +32,21 @@
         VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{email}, #{role}, #{status})
     </insert>
 
+    <!-- 分页查询用户列表（按注册时间倒序） -->
+    <select id="findList" resultMap="userResultMap">
+        SELECT * FROM user ORDER BY create_time DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 查询用户总数 -->
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM user
+    </select>
+
+    <!-- 更新用户状态 -->
+    <update id="updateStatus">
+        UPDATE user SET status = #{status} WHERE id = #{id}
+    </update>
+
     <!-- 更新用户个人信息 -->
     <update id="updateProfile">
         UPDATE user

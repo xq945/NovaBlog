@@ -119,3 +119,15 @@ export function getHotArticles(size = 10) {
     params: { size }
   })
 }
+
+/**
+ * 管理员查询所有文章（含草稿）
+ * @param {Object} params - { page, size, keyword }
+ */
+export function getAdminArticleList(params) {
+  return request({
+    url: '/article/admin/list',
+    method: 'get',
+    params
+  })
+}

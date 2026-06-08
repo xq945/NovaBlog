@@ -88,4 +88,51 @@
         WHERE parent_id = #{parentId} AND status = 1
     </update>
 
+    <!-- 管理员评论 VO 映射 -->
+    <resultMap id="adminCommentVOResultMap" type="com.novablog.vo.AdminCommentVO">
+        <id property="id" column="id"/>
+        <result property="content" column="content"/>
+        <result property="articleId" column="article_id"/>
+        <result property="articleTitle" column="article_title"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="createTime" column="create_time"/>
+        <association property="user" javaType="com.novablog.vo.UserVO" notNullColumn="uid">
+            <id property="id" column="uid"/>
+            <result property="nickname" column="unickname"/>
+            <result property="avatar" column="uavatar"/>
+        </association>
+        <association property="replyToUser" javaType="com.novablog.vo.UserVO" notNullColumn="ruid">
+            <id property="id" column="ruid"/>
+            <result property="nickname" column="runickname"/>
+        </association>
+    </resultMap>
+
+    <!-- 管理员查询所有评论（JOIN 文章标题） -->
+    <select id="findAdminList" resultMap="adminCommentVOResultMap">
+        SELECT
+            c.id, c.content, c.article_id, c.user_id, c.parent_id, c.reply_to_id, c.create_time,
+            a.title AS article_title,
+            u.id AS uid, u.nickname AS unickname, u.avatar AS uavatar,
+            ru.id AS ruid, ru.nickname AS runickname
+        FROM comment c
+        LEFT JOIN article a ON c.article_id = a.id
+        LEFT JOIN user u ON c.user_id = u.id
+        LEFT JOIN user ru ON c.reply_to_id = ru.id
+        WHERE c.status = 1
+        <if test="articleId != null">
+            AND c.article_id = #{articleId}
+        </if>
+        ORDER BY c.create_time DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 管理员查询评论总数 -->
+    <select id="countAdminList" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM comment
+        WHERE status = 1
+        <if test="articleId != null">
+            AND article_id = #{articleId}
+        </if>
+    </select>
+
 </mapper>

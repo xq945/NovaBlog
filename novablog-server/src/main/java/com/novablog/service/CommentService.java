@@ -33,4 +33,14 @@ public interface CommentService {
      * @param id 评论ID
      */
     void delete(Long id);
+
+    /**
+     * 管理员查询所有评论
+     *
+     * @param articleId 文章ID筛选
+     * @param page      页码
+     * @param size      每页数量
+     * @return 分页结果
+     */
+    PageResult<com.novablog.vo.AdminCommentVO> findAdminList(Long articleId, Integer page, Integer size);
 }

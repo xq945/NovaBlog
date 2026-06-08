@@ -159,6 +159,9 @@ onUnmounted(() => {
       <div class="nav-brand" @click="router.push('/')">NovaBlog</div>
       <div class="nav-links">
         <template v-if="userStore.userInfo">
+          <span v-if="userStore.userInfo.role === 'ADMIN'" class="nav-link" @click="router.push('/admin')">
+            <el-icon><Setting /></el-icon> 后台管理
+          </span>
           <span class="nav-link" @click="goToCreate">
             <el-icon><Plus /></el-icon> 写文章
           </span>

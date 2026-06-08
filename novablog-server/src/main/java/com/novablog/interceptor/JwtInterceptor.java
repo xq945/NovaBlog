@@ -3,6 +3,8 @@ package com.novablog.interceptor;
 import com.novablog.common.Result;
 import com.novablog.common.UserContext;
 import com.novablog.dto.UserDTO;
+import com.novablog.entity.User;
+import com.novablog.mapper.UserMapper;
 import com.novablog.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -16,7 +18,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
  * JWT 认证拦截器
- * 校验请求头中的 Access Token
+ * 校验请求头中的 Access Token，并实时校验用户状态
  */
 @Slf4j
 @Component
@@ -24,6 +26,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
+    private final UserMapper userMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -39,6 +42,13 @@ public class JwtInterceptor implements HandlerInterceptor {
                     String token = authHeader.substring(7);
                     UserDTO user = jwtUtil.getUserFromToken(token);
                     UserContext.set(user);
+
+                    // 实时校验用户状态
+                    User dbUser = userMapper.findById(user.getId());
+                    if (dbUser == null || dbUser.getStatus() == 0) {
+                        writeErrorResponse(response, 401, "用户不存在或已被禁用");
+                        return false;
+                    }
                 } catch (Exception e) {
                     // Token 无效或过期，忽略，作为未登录用户处理
                 }
@@ -66,8 +76,15 @@ public class JwtInterceptor implements HandlerInterceptor {
 
             // 提取用户信息存入 ThreadLocal
             UserDTO user = jwtUtil.getUserFromToken(token);
-            System.out.println("[JwtInterceptor] User from token: id=" + user.getId() + ", username=" + user.getUsername() + ", role=" + user.getRole());
             UserContext.set(user);
+
+            // 实时校验用户状态（防止被禁用后 token 仍可用）
+            User dbUser = userMapper.findById(user.getId());
+            if (dbUser == null || dbUser.getStatus() == 0) {
+                writeErrorResponse(response, 401, "用户不存在或已被禁用");
+                return false;
+            }
+
             return true;
 
         } catch (ExpiredJwtException e) {

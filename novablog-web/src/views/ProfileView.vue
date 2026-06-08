@@ -191,6 +191,9 @@ onMounted(() => {
       </div>
       <div class="nav-links">
         <span class="nav-link" @click="router.push('/')">首页</span>
+        <span v-if="userStore.userInfo?.role === 'ADMIN'" class="nav-link" @click="router.push('/admin')">
+          <el-icon><Setting /></el-icon> 后台管理
+        </span>
         <span class="nav-link" @click="router.push('/article/create')">
           <el-icon><Plus /></el-icon> 写文章
         </span>

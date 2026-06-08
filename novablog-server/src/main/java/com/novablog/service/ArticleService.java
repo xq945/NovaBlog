@@ -93,4 +93,14 @@ public interface ArticleService {
      * @return 热门文章列表
      */
     List<HotArticleVO> findHotArticles(Integer size);
+
+    /**
+     * 管理员查询所有文章（含草稿）
+     *
+     * @param page    页码
+     * @param size    每页数量
+     * @param keyword 关键词搜索
+     * @return 分页结果
+     */
+    PageResult<ArticleVO> findAdminList(Integer page, Integer size, String keyword);
 }

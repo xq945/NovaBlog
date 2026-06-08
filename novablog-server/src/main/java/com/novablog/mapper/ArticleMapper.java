@@ -129,4 +129,24 @@ public interface ArticleMapper {
      * @return 文章列表
      */
     List<ArticleVO> findByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 管理员查询所有文章（含草稿）
+     *
+     * @param keyword 关键词搜索，可为null
+     * @param offset  偏移量
+     * @param size    每页数量
+     * @return 文章列表
+     */
+    List<ArticleVO> findAdminList(@Param("keyword") String keyword,
+                                   @Param("offset") int offset,
+                                   @Param("size") int size);
+
+    /**
+     * 管理员查询文章总数
+     *
+     * @param keyword 关键词搜索，可为null
+     * @return 总记录数
+     */
+    Long countAdminList(@Param("keyword") String keyword);
 }

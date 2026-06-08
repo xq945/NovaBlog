@@ -1,6 +1,7 @@
 package com.novablog.mapper;
 
 import com.novablog.entity.Comment;
+import com.novablog.vo.AdminCommentVO;
 import com.novablog.vo.CommentVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -75,4 +76,24 @@ public interface CommentMapper {
      */
     int batchUpdateStatusByParentId(@Param("parentId") Long parentId,
                                     @Param("status") Integer status);
+
+    /**
+     * 管理员查询所有评论（扁平化，JOIN 文章标题）
+     *
+     * @param articleId 文章ID筛选，可为null
+     * @param offset    偏移量
+     * @param size      每页数量
+     * @return 评论列表
+     */
+    List<AdminCommentVO> findAdminList(@Param("articleId") Long articleId,
+                                       @Param("offset") int offset,
+                                       @Param("size") int size);
+
+    /**
+     * 管理员查询评论总数
+     *
+     * @param articleId 文章ID筛选，可为null
+     * @return 总数
+     */
+    Long countAdminList(@Param("articleId") Long articleId);
 }

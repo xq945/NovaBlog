@@ -15,4 +15,27 @@ public interface TagService {
      * @return 标签列表
      */
     List<Tag> findAll();
+
+    /**
+     * 创建标签
+     *
+     * @param name 标签名称
+     * @return 标签ID
+     */
+    Long create(String name);
+
+    /**
+     * 修改标签
+     *
+     * @param id   标签ID
+     * @param name 标签名称
+     */
+    void update(Long id, String name);
+
+    /**
+     * 删除标签
+     *
+     * @param id 标签ID
+     */
+    void delete(Long id);
 }

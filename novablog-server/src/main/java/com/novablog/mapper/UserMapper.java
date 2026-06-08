@@ -4,6 +4,8 @@ import com.novablog.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
  * 用户数据访问层
  */
@@ -45,4 +47,29 @@ public interface UserMapper {
     int updateProfile(@Param("id") Long id,
                       @Param("nickname") String nickname,
                       @Param("email") String email);
+
+    /**
+     * 分页查询用户列表（按注册时间倒序）
+     *
+     * @param offset 偏移量
+     * @param size   每页数量
+     * @return 用户列表
+     */
+    List<User> findList(@Param("offset") int offset, @Param("size") int size);
+
+    /**
+     * 查询用户总数
+     *
+     * @return 用户总数
+     */
+    Long countAll();
+
+    /**
+     * 更新用户状态
+     *
+     * @param id     用户ID
+     * @param status 状态
+     * @return 影响行数
+     */
+    int updateStatus(@Param("id") Long id, @Param("status") Integer status);
 }

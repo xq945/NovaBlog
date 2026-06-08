@@ -11,6 +11,7 @@ import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.CommentMapper;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.CommentService;
+import com.novablog.vo.AdminCommentVO;
 import com.novablog.vo.CommentVO;
 import com.novablog.vo.UserVO;
 import lombok.RequiredArgsConstructor;
@@ -196,6 +197,26 @@ public class CommentServiceImpl implements CommentService {
         }
 
         return new PageResult<>(total, topList);
+    }
+
+    @Override
+    public PageResult<AdminCommentVO> findAdminList(Long articleId, Integer page, Integer size) {
+        // 修正分页参数
+        if (page == null || page < 1) {
+            page = 1;
+        }
+        if (size == null || size < 1) {
+            size = 10;
+        }
+        if (size > 50) {
+            size = 50;
+        }
+        int offset = (page - 1) * size;
+
+        List<AdminCommentVO> list = commentMapper.findAdminList(articleId, offset, size);
+        Long total = commentMapper.countAdminList(articleId);
+
+        return new PageResult<>(total, list);
     }
 
     @Override

@@ -213,4 +213,35 @@
         DELETE FROM article WHERE id = #{id}
     </delete>
 
+    <!-- 管理员查询所有文章（含草稿） -->
+    <select id="findAdminList" resultMap="articleVOResultMap">
+        SELECT
+            a.id, a.title, a.summary, a.cover,
+            a.view_count, a.like_count, a.status,
+            a.user_id AS author_id,
+            u.nickname AS author_nickname,
+            u.avatar AS author_avatar,
+            a.category_id,
+            c.name AS category_name,
+            a.create_time
+        FROM article a
+        LEFT JOIN user u ON a.user_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY a.create_time DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 管理员查询文章总数 -->
+    <select id="countAdminList" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM article a
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
 </mapper>

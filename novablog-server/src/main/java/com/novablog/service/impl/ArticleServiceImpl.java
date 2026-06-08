@@ -205,11 +205,13 @@ public class ArticleServiceImpl implements ArticleService {
             throw new BusinessException(404, "文章不存在");
         }
 
-        // 2. 草稿权限判断：仅作者本人可查看
+        // 2. 草稿权限判断：作者本人或管理员可查看
         if (detail.getStatus() != null && detail.getStatus() == 0) {
             Long currentUserId = UserContext.getUserId();
             Long authorId = detail.getAuthor() != null ? detail.getAuthor().getId() : null;
-            if (currentUserId == null || !currentUserId.equals(authorId)) {
+            String currentRole = UserContext.getRole();
+            if ((currentUserId == null || !currentUserId.equals(authorId))
+                    && !"ADMIN".equals(currentRole)) {
                 throw new BusinessException(404, "文章不存在");
             }
             // 草稿不增加浏览量
@@ -599,6 +601,63 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         return vo;
+    }
+
+    @Override
+    public PageResult<ArticleVO> findAdminList(Integer page, Integer size, String keyword) {
+        // 1. 分页参数修正
+        if (page == null || page < 1) {
+            page = 1;
+        }
+        if (size == null || size < 1) {
+            size = 10;
+        }
+        if (size > 50) {
+            size = 50;
+        }
+
+        // 2. 处理关键词
+        if (keyword != null) {
+            keyword = keyword.trim();
+            if (!keyword.isEmpty()) {
+                keyword = keyword.replaceAll("[%_*]", "");
+            }
+            if (keyword.isEmpty()) {
+                keyword = null;
+            }
+        }
+
+        int offset = (page - 1) * size;
+
+        // 3. 查询列表和总数
+        List<ArticleVO> list = articleMapper.findAdminList(keyword, offset, size);
+        Long total = articleMapper.countAdminList(keyword);
+
+        // 4. 补充标签和 Redis 实时计数
+        for (ArticleVO article : list) {
+            List<String> tagNames = findTagNamesByArticleId(article.getId());
+            article.setTags(tagNames);
+
+            Long articleId = article.getId();
+            try {
+                String viewCountStr = redisUtil.get(KEY_VIEW + articleId);
+                if (viewCountStr != null) {
+                    article.setViewCount(Integer.parseInt(viewCountStr));
+                }
+            } catch (Exception e) {
+                log.warn("从 Redis 读取浏览量失败, articleId={}", articleId, e);
+            }
+            try {
+                Long likeCount = redisUtil.sCard(KEY_LIKE + articleId);
+                if (likeCount != null) {
+                    article.setLikeCount(likeCount.intValue());
+                }
+            } catch (Exception e) {
+                log.warn("从 Redis 读取点赞数失败, articleId={}", articleId, e);
+            }
+        }
+
+        return new PageResult<>(total, list);
     }
 
     @Override

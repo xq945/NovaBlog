@@ -2,6 +2,8 @@ package com.novablog.controller;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
+import com.novablog.common.UserContext;
+import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.ArticleDTO;
 import com.novablog.service.ArticleService;
 import com.novablog.vo.ArticleDetailVO;
@@ -137,5 +139,29 @@ public class ArticleController {
             @RequestParam(required = false, defaultValue = "10") Integer size) {
         List<HotArticleVO> list = articleService.findHotArticles(size);
         return Result.success(list);
+    }
+
+    /**
+     * 管理员查询所有文章（含草稿）
+     *
+     * @param page    页码
+     * @param size    每页数量
+     * @param keyword 关键词
+     * @return 文章分页结果
+     */
+    @GetMapping("/admin/list")
+    public Result<PageResult<ArticleVO>> adminList(
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword) {
+        checkAdmin();
+        PageResult<ArticleVO> result = articleService.findAdminList(page, size, keyword);
+        return Result.success(result);
+    }
+
+    private void checkAdmin() {
+        if (!"ADMIN".equals(UserContext.getRole())) {
+            throw new BusinessException(403, "无权访问");
+        }
     }
 }

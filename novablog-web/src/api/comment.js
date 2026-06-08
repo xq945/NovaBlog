@@ -34,3 +34,15 @@ export function deleteComment(id) {
     method: 'delete'
   })
 }
+
+/**
+ * 管理员查询所有评论
+ * @param {Object} params - { page, size, articleId }
+ */
+export function getAdminCommentList(params) {
+  return request({
+    url: '/comment/admin/list',
+    method: 'get',
+    params
+  })
+}

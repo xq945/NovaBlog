@@ -50,4 +50,28 @@ public interface TagMapper {
      * @return 标签列表
      */
     List<Tag> findByArticleId(@Param("articleId") Long articleId);
+
+    /**
+     * 更新标签
+     *
+     * @param tag 标签实体
+     * @return 影响行数
+     */
+    int update(Tag tag);
+
+    /**
+     * 删除标签
+     *
+     * @param id 标签ID
+     * @return 影响行数
+     */
+    int deleteById(@Param("id") Long id);
+
+    /**
+     * 删除文章标签关联
+     *
+     * @param tagId 标签ID
+     * @return 影响行数
+     */
+    int deleteArticleTagByTagId(@Param("tagId") Long tagId);
 }
