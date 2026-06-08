@@ -9,17 +9,11 @@ const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
 
-/**
- * 登录表单数据
- */
 const form = reactive({
   username: '',
   password: ''
 })
 
-/**
- * 表单校验规则
- */
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -33,9 +27,6 @@ const rules = {
 
 const formRef = ref(null)
 
-/**
- * 登录提交
- */
 const handleLogin = async () => {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
@@ -79,7 +70,7 @@ const handleLogin = async () => {
             v-model="form.username"
             placeholder="用户名"
             size="large"
-            :prefix-icon="User"
+            prefix-icon="User"
           />
         </el-form-item>
 
@@ -90,7 +81,7 @@ const handleLogin = async () => {
             placeholder="密码"
             size="large"
             show-password
-            :prefix-icon="Lock"
+            prefix-icon="Lock"
           />
         </el-form-item>
 
@@ -127,20 +118,21 @@ const handleLogin = async () => {
 .login-card {
   width: 420px;
   padding: 48px 40px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .title {
   font-size: clamp(1.8rem, 5vw, 2.5rem);
-  color: #1e293b;
+  color: #fff;
   margin: 0 0 8px 0;
   text-align: center;
 }
 
 .subtitle {
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.5);
   text-align: center;
   margin: 0 0 32px 0;
   font-size: 14px;
@@ -154,7 +146,7 @@ const handleLogin = async () => {
 .footer {
   text-align: center;
   margin-top: 24px;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
 }
 
@@ -165,5 +157,47 @@ const handleLogin = async () => {
 
 .footer a:hover {
   text-decoration: underline;
+}
+</style>
+
+<style>
+/* 覆盖 Element Plus 输入框变量 */
+.login-page .el-input {
+  --el-input-bg-color: rgba(255, 255, 255, 0.08);
+  --el-input-text-color: #fff;
+  --el-input-border-color: rgba(255, 255, 255, 0.2);
+  --el-input-hover-border-color: rgba(255, 255, 255, 0.4);
+  --el-input-focus-border-color: #409eff;
+  --el-input-placeholder-color: rgba(255, 255, 255, 0.4);
+  --el-input-icon-color: rgba(255, 255, 255, 0.5);
+}
+
+.login-page .el-input__wrapper {
+  background-color: var(--el-input-bg-color) !important;
+  box-shadow: 0 0 0 1px var(--el-input-border-color) inset !important;
+}
+
+.login-page .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--el-input-focus-border-color) inset !important;
+}
+
+.login-page .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--el-input-hover-border-color) inset !important;
+}
+
+.login-page .el-input__inner {
+  color: var(--el-input-text-color) !important;
+}
+
+.login-page .el-input__inner::placeholder {
+  color: var(--el-input-placeholder-color) !important;
+}
+
+.login-page .el-input__icon {
+  color: var(--el-input-icon-color) !important;
+}
+
+.login-page .el-form-item__error {
+  color: #f56c6c;
 }
 </style>

@@ -7,9 +7,6 @@ import { register } from '../api/user'
 const router = useRouter()
 const loading = ref(false)
 
-/**
- * 注册表单数据
- */
 const form = reactive({
   username: '',
   nickname: '',
@@ -17,11 +14,8 @@ const form = reactive({
   confirmPassword: ''
 })
 
-/**
- * 密码复杂度校验：8-20位，必须同时包含大写字母、小写字母、数字、特殊符号
- */
 const validatePassword = (rule, value, callback) => {
-  const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,20}$/
+  const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]).{8,20}$/
   if (!pattern.test(value)) {
     callback(new Error('密码必须为8-20位，且同时包含大写字母、小写字母、数字、特殊符号'))
   } else {
@@ -29,9 +23,6 @@ const validatePassword = (rule, value, callback) => {
   }
 }
 
-/**
- * 确认密码校验
- */
 const validateConfirmPassword = (rule, value, callback) => {
   if (value !== form.password) {
     callback(new Error('两次输入的密码不一致'))
@@ -40,9 +31,6 @@ const validateConfirmPassword = (rule, value, callback) => {
   }
 }
 
-/**
- * 表单校验规则
- */
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -65,9 +53,6 @@ const rules = {
 
 const formRef = ref(null)
 
-/**
- * 注册提交
- */
 const handleRegister = async () => {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
@@ -175,25 +160,25 @@ const handleRegister = async () => {
 .register-card {
   width: 420px;
   padding: 48px 40px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .title {
   font-size: clamp(1.8rem, 5vw, 2.5rem);
-  color: #1e293b;
+  color: #fff;
   margin: 0 0 8px 0;
   text-align: center;
 }
 
 .subtitle {
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.5);
   text-align: center;
   margin: 0 0 32px 0;
   font-size: 14px;
 }
-
 
 .submit-btn {
   width: 100%;
@@ -203,7 +188,7 @@ const handleRegister = async () => {
 .footer {
   text-align: center;
   margin-top: 24px;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
 }
 
@@ -214,5 +199,47 @@ const handleRegister = async () => {
 
 .footer a:hover {
   text-decoration: underline;
+}
+</style>
+
+<style>
+/* 覆盖 Element Plus 输入框变量 */
+.register-page .el-input {
+  --el-input-bg-color: rgba(255, 255, 255, 0.08);
+  --el-input-text-color: #fff;
+  --el-input-border-color: rgba(255, 255, 255, 0.2);
+  --el-input-hover-border-color: rgba(255, 255, 255, 0.4);
+  --el-input-focus-border-color: #409eff;
+  --el-input-placeholder-color: rgba(255, 255, 255, 0.4);
+  --el-input-icon-color: rgba(255, 255, 255, 0.5);
+}
+
+.register-page .el-input__wrapper {
+  background-color: var(--el-input-bg-color) !important;
+  box-shadow: 0 0 0 1px var(--el-input-border-color) inset !important;
+}
+
+.register-page .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--el-input-focus-border-color) inset !important;
+}
+
+.register-page .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--el-input-hover-border-color) inset !important;
+}
+
+.register-page .el-input__inner {
+  color: var(--el-input-text-color) !important;
+}
+
+.register-page .el-input__inner::placeholder {
+  color: var(--el-input-placeholder-color) !important;
+}
+
+.register-page .el-input__icon {
+  color: var(--el-input-icon-color) !important;
+}
+
+.register-page .el-form-item__error {
+  color: #f56c6c;
 }
 </style>

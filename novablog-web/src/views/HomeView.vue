@@ -775,17 +775,46 @@ onUnmounted(() => {
 }
 
 /* 覆盖输入框和选择框样式 */
-.home .el-input__wrapper,
-.home .el-select .el-input__wrapper {
-  background: rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
+.home .el-input {
+  --el-input-bg-color: rgba(255, 255, 255, 0.08);
+  --el-input-text-color: #fff;
+  --el-input-border-color: rgba(255, 255, 255, 0.2);
+  --el-input-hover-border-color: rgba(255, 255, 255, 0.4);
+  --el-input-focus-border-color: #409eff;
+  --el-input-placeholder-color: rgba(255, 255, 255, 0.4);
+  --el-input-icon-color: rgba(255, 255, 255, 0.5);
+}
+
+.home .el-input__wrapper {
+  background-color: var(--el-input-bg-color) !important;
+  box-shadow: 0 0 0 1px var(--el-input-border-color) inset !important;
+}
+
+.home .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--el-input-focus-border-color) inset !important;
+}
+
+.home .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--el-input-hover-border-color) inset !important;
 }
 
 .home .el-input__inner {
-  color: #fff !important;
+  color: var(--el-input-text-color) !important;
 }
 
 .home .el-input__inner::placeholder {
-  color: rgba(255, 255, 255, 0.3) !important;
+  color: var(--el-input-placeholder-color) !important;
+}
+
+.home .el-input__icon {
+  color: var(--el-input-icon-color) !important;
+}
+
+.home .el-select {
+  --el-select-input-focus-border-color: #409eff;
+}
+
+.home .el-form-item__error {
+  color: #f56c6c;
 }
 </style>
