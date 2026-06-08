@@ -27,6 +27,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/user/login",         // 用户登录
                         "/auth/refresh",       // Token 刷新
                         "/article/list",       // 文章列表
+                        "/article/hot",        // 热门文章列表
                         "/category/list",      // 分类列表
                         "/tag/list",           // 标签列表
                         "/comment/list"        // 评论列表

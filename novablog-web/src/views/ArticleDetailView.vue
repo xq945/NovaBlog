@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getArticleDetail } from '../api/article'
+import { getArticleDetail, likeArticle, unlikeArticle, getLikeStatus } from '../api/article'
 import { publishComment, getCommentList, deleteComment } from '../api/comment'
 import { useUserStore } from '../stores'
 import { marked } from 'marked'
@@ -60,6 +60,73 @@ const formatTime = (time) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// ========== 点赞区域 ==========
+const liked = ref(false)
+const likeCount = ref(0)
+const likeLoading = ref(false)
+
+const fetchLikeStatus = async () => {
+  if (!userStore.userInfo) return
+  const articleId = route.params.id
+  if (!articleId) return
+
+  try {
+    const res = await getLikeStatus(articleId)
+    if (res.code === 200) {
+      liked.value = res.data.liked
+      likeCount.value = res.data.likeCount
+    }
+  } catch (error) {
+    console.error('获取点赞状态失败', error)
+  }
+}
+
+const handleLike = async () => {
+  if (!userStore.userInfo) {
+    router.push('/login')
+    return
+  }
+  const articleId = route.params.id
+  if (!articleId) return
+
+  likeLoading.value = true
+  try {
+    const res = await likeArticle(articleId)
+    if (res.code === 200) {
+      liked.value = true
+      likeCount.value++
+      ElMessage.success('点赞成功')
+    } else {
+      ElMessage.error(res.message || '点赞失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '点赞失败')
+  } finally {
+    likeLoading.value = false
+  }
+}
+
+const handleUnlike = async () => {
+  const articleId = route.params.id
+  if (!articleId) return
+
+  likeLoading.value = true
+  try {
+    const res = await unlikeArticle(articleId)
+    if (res.code === 200) {
+      liked.value = false
+      likeCount.value--
+      ElMessage.success('已取消点赞')
+    } else {
+      ElMessage.error(res.message || '取消点赞失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '取消点赞失败')
+  } finally {
+    likeLoading.value = false
+  }
 }
 
 // ========== 评论区域 ==========
@@ -197,6 +264,7 @@ const canReply = () => !!userStore.userInfo
 
 onMounted(() => {
   fetchArticle()
+  fetchLikeStatus()
   fetchComments()
 })
 </script>
@@ -241,6 +309,54 @@ onMounted(() => {
         </div>
 
         <div class="article-content" v-html="renderMarkdown(article.content)"></div>
+
+        <!-- 点赞区域 -->
+        <div class="like-section">
+          <div class="like-actions">
+            <template v-if="!userStore.userInfo">
+              <el-button
+                type="default"
+                size="large"
+                class="like-btn"
+                @click="router.push('/login')"
+              >
+                <el-icon><Star /></el-icon>
+                <span>点赞</span>
+                <span class="like-count">{{ likeCount }}</span>
+              </el-button>
+            </template>
+            <template v-else>
+              <el-button
+                v-if="!liked"
+                type="default"
+                size="large"
+                class="like-btn"
+                :loading="likeLoading"
+                @click="handleLike"
+              >
+                <el-icon><Star /></el-icon>
+                <span>点赞</span>
+                <span class="like-count">{{ likeCount }}</span>
+              </el-button>
+              <el-button
+                v-else
+                type="primary"
+                size="large"
+                class="like-btn liked"
+                :loading="likeLoading"
+                @click="handleUnlike"
+              >
+                <el-icon><StarFilled /></el-icon>
+                <span>已赞</span>
+                <span class="like-count">{{ likeCount }}</span>
+              </el-button>
+            </template>
+          </div>
+          <div class="view-count">
+            <el-icon><View /></el-icon>
+            <span>{{ article.viewCount || 0 }} 浏览</span>
+          </div>
+        </div>
       </template>
 
       <el-empty v-else-if="!loading" description="文章不存在" />
@@ -431,6 +547,54 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* 点赞区域 */
+.like-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.like-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.like-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s;
+}
+
+.like-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.like-btn.liked {
+  background: rgba(64, 158, 255, 0.2);
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.like-count {
+  font-weight: 600;
+}
+
+.view-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
 }
 
 /* Markdown 内容渲染 */

@@ -73,3 +73,49 @@ export function getMyArticles(params) {
     params
   })
 }
+
+/**
+ * 点赞文章
+ * @param {number} id - 文章ID
+ */
+export function likeArticle(id) {
+  return request({
+    url: `/article/like/${id}`,
+    method: 'post'
+  })
+}
+
+/**
+ * 取消点赞
+ * @param {number} id - 文章ID
+ */
+export function unlikeArticle(id) {
+  return request({
+    url: `/article/like/${id}`,
+    method: 'delete'
+  })
+}
+
+/**
+ * 查询点赞状态
+ * @param {number} articleId - 文章ID
+ */
+export function getLikeStatus(articleId) {
+  return request({
+    url: '/article/like/status',
+    method: 'get',
+    params: { articleId }
+  })
+}
+
+/**
+ * 查询热门文章列表
+ * @param {number} size - 数量，默认10
+ */
+export function getHotArticles(size = 10) {
+  return request({
+    url: '/article/hot',
+    method: 'get',
+    params: { size }
+  })
+}

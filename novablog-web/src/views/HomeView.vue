@@ -2,7 +2,7 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getArticleList, deleteArticle } from '../api/article'
+import { getArticleList, deleteArticle, getHotArticles } from '../api/article'
 import { getCategoryList } from '../api/category'
 import { useUserStore } from '../stores'
 
@@ -21,6 +21,24 @@ const categories = ref([])
 
 // 搜索防抖定时器
 let searchTimer = null
+
+// ========== 热门文章 ==========
+const hotArticles = ref([])
+const hotLoading = ref(false)
+
+const fetchHotArticles = async () => {
+  hotLoading.value = true
+  try {
+    const res = await getHotArticles(10)
+    if (res.code === 200) {
+      hotArticles.value = res.data || []
+    }
+  } catch (error) {
+    console.error('加载热门文章失败', error)
+  } finally {
+    hotLoading.value = false
+  }
+}
 
 const fetchArticles = async () => {
   loading.value = true
@@ -126,6 +144,7 @@ const handleLogout = () => {
 onMounted(() => {
   fetchCategories()
   fetchArticles()
+  fetchHotArticles()
 })
 
 onUnmounted(() => {
@@ -156,10 +175,12 @@ onUnmounted(() => {
       </div>
     </nav>
 
-    <!-- 文章列表区域 -->
-    <div class="content-area">
-      <!-- 筛选栏 -->
-      <div class="filter-bar">
+    <!-- 主内容区域：双列布局 -->
+    <div class="main-layout">
+      <!-- 左侧：文章列表 -->
+      <div class="content-left">
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
         <el-select
           v-model="selectedCategory"
           placeholder="全部分类"
@@ -245,17 +266,46 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 分页 -->
-      <div class="pagination-wrapper" v-if="total > 0">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          @current-change="handlePageChange"
-          @size-change="handlePageChange"
-        />
+        <!-- 分页 -->
+        <div class="pagination-wrapper" v-if="total > 0">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            layout="total, sizes, prev, pager, next"
+            @current-change="handlePageChange"
+            @size-change="handlePageChange"
+          />
+        </div>
+      </div>
+
+      <!-- 右侧：热门文章侧边栏 -->
+      <div class="content-right">
+        <div class="hot-section">
+          <h3 class="hot-title">
+            <el-icon><TrendCharts /></el-icon>
+            热门文章
+          </h3>
+          <div v-loading="hotLoading" class="hot-list">
+            <el-empty v-if="!hotLoading && hotArticles.length === 0" description="暂无热门文章" />
+            <div
+              v-for="(article, index) in hotArticles"
+              :key="article.id"
+              class="hot-item"
+              @click="goToDetail(article.id)"
+            >
+              <div class="hot-rank" :class="{ 'top3': index < 3 }">{{ index + 1 }}</div>
+              <div class="hot-info">
+                <div class="hot-item-title">{{ article.title }}</div>
+                <div class="hot-item-meta">
+                  <span><el-icon><View /></el-icon> {{ article.viewCount || 0 }}</span>
+                  <span><el-icon><Star /></el-icon> {{ article.likeCount || 0 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -326,11 +376,23 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* 内容区域 */
-.content-area {
-  max-width: 960px;
+/* 主内容区域：双列布局 */
+.main-layout {
+  display: flex;
+  gap: 24px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 32px 20px;
+}
+
+.content-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.content-right {
+  width: 280px;
+  flex-shrink: 0;
 }
 
 /* 筛选栏 */
@@ -435,6 +497,91 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 32px;
+}
+
+/* 热门文章侧边栏 */
+.hot-section {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.hot-title {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hot-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hot-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hot-rank {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.hot-rank.top3 {
+  background: #409eff;
+  color: #fff;
+}
+
+.hot-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hot-item-title {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hot-item-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hot-item-meta span {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 </style>
 

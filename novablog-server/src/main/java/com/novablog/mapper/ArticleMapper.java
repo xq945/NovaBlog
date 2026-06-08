@@ -105,4 +105,28 @@ public interface ArticleMapper {
      * @return 影响行数
      */
     int incrementViewCount(Long id);
+
+    /**
+     * 更新浏览量（定时任务同步用）
+     *
+     * @param id        文章ID
+     * @param viewCount 浏览量
+     * @return 影响行数
+     */
+    int updateViewCount(@Param("id") Long id, @Param("viewCount") Long viewCount);
+
+    /**
+     * 查询所有已发布文章（Redis初始化用）
+     *
+     * @return 文章列表
+     */
+    List<Article> findAllPublished();
+
+    /**
+     * 根据ID列表批量查询文章（热门文章用）
+     *
+     * @param ids 文章ID列表
+     * @return 文章列表
+     */
+    List<ArticleVO> findByIds(@Param("ids") List<Long> ids);
 }

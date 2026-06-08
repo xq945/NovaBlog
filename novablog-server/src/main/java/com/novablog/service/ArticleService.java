@@ -4,6 +4,8 @@ import com.novablog.common.PageResult;
 import com.novablog.dto.ArticleDTO;
 import com.novablog.vo.ArticleDetailVO;
 import com.novablog.vo.ArticleVO;
+import com.novablog.vo.HotArticleVO;
+import com.novablog.vo.LikeStatusVO;
 
 import java.util.List;
 
@@ -61,4 +63,34 @@ public interface ArticleService {
      * @return 分页结果
      */
     PageResult<ArticleVO> findMyArticles(Integer page, Integer size);
+
+    /**
+     * 点赞文章
+     *
+     * @param articleId 文章ID
+     */
+    void like(Long articleId);
+
+    /**
+     * 取消点赞
+     *
+     * @param articleId 文章ID
+     */
+    void unlike(Long articleId);
+
+    /**
+     * 查询点赞状态
+     *
+     * @param articleId 文章ID
+     * @return 点赞状态
+     */
+    LikeStatusVO getLikeStatus(Long articleId);
+
+    /**
+     * 查询热门文章列表
+     *
+     * @param size 数量
+     * @return 热门文章列表
+     */
+    List<HotArticleVO> findHotArticles(Integer size);
 }
