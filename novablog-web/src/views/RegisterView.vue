@@ -175,54 +175,25 @@ const handleRegister = async () => {
 .register-card {
   width: 420px;
   padding: 48px 40px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
+  background: #fff;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .title {
   font-size: clamp(1.8rem, 5vw, 2.5rem);
-  color: #fff;
+  color: #1e293b;
   margin: 0 0 8px 0;
   text-align: center;
 }
 
 .subtitle {
-  color: rgba(255, 255, 255, 0.5);
+  color: #64748b;
   text-align: center;
   margin: 0 0 32px 0;
   font-size: 14px;
 }
 
-.register-form :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
-}
-
-.register-form :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #409eff inset !important;
-}
-
-.register-form :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) inset !important;
-}
-
-.register-form :deep(.el-input__inner) {
-  color: #fff !important;
-}
-
-.register-form :deep(.el-input__inner::placeholder) {
-  color: rgba(255, 255, 255, 0.4) !important;
-}
-
-.register-form :deep(.el-input__icon) {
-  color: rgba(255, 255, 255, 0.5) !important;
-}
-
-.register-form :deep(.el-form-item__error) {
-  color: #f56c6c;
-}
 
 .submit-btn {
   width: 100%;
@@ -232,7 +203,7 @@ const handleRegister = async () => {
 .footer {
   text-align: center;
   margin-top: 24px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #64748b;
   font-size: 14px;
 }
 
