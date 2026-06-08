@@ -1,21 +1,110 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMyArticles, deleteArticle } from '../api/article'
+import { getProfile, updateProfile } from '../api/user'
 import { useUserStore } from '../stores'
 
 const router = useRouter()
 const userStore = useUserStore()
 
+// ========== 个人信息 ==========
+const profile = ref(null)
+const loading = ref(false)
+const editing = ref(false)
+const saving = ref(false)
+const editForm = reactive({
+  nickname: '',
+  email: ''
+})
+
+const fetchProfile = async () => {
+  loading.value = true
+  try {
+    const res = await getProfile()
+    if (res.code === 200) {
+      profile.value = res.data
+    }
+  } catch (error) {
+    console.error('加载个人信息失败', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const startEdit = () => {
+  editForm.nickname = profile.value?.nickname || ''
+  editForm.email = profile.value?.email || ''
+  editing.value = true
+}
+
+const cancelEdit = () => {
+  editing.value = false
+}
+
+const handleSave = async () => {
+  const nickname = editForm.nickname.trim()
+  if (!nickname) {
+    ElMessage.error('昵称不能为空')
+    return
+  }
+  if (nickname.length > 20) {
+    ElMessage.error('昵称长度不能超过20位')
+    return
+  }
+
+  const email = editForm.email.trim()
+  if (email && email.length > 100) {
+    ElMessage.error('邮箱长度不能超过100位')
+    return
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    ElMessage.error('邮箱格式不正确')
+    return
+  }
+
+  saving.value = true
+  try {
+    const res = await updateProfile({
+      nickname,
+      email: email || null
+    })
+    if (res.code === 200) {
+      ElMessage.success('保存成功')
+      editing.value = false
+      await fetchProfile()
+      // 同步全局状态
+      if (profile.value) {
+        userStore.setUserInfo(profile.value)
+      }
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+const getRoleLabel = (role) => {
+  return role === 'ADMIN' ? '管理员' : '普通用户'
+}
+
+const getRoleType = (role) => {
+  return role === 'ADMIN' ? 'danger' : 'info'
+}
+
+// ========== 我的文章 ==========
 const articles = ref([])
 const total = ref(0)
-const loading = ref(false)
+const articleLoading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
 const fetchMyArticles = async () => {
-  loading.value = true
+  articleLoading.value = true
   try {
     const res = await getMyArticles({
       page: currentPage.value,
@@ -28,7 +117,7 @@ const fetchMyArticles = async () => {
   } catch (error) {
     ElMessage.error('加载文章失败')
   } finally {
-    loading.value = false
+    articleLoading.value = false
   }
 }
 
@@ -88,6 +177,7 @@ onMounted(() => {
     router.push('/')
     return
   }
+  fetchProfile()
   fetchMyArticles()
 })
 </script>
@@ -109,73 +199,146 @@ onMounted(() => {
 
     <!-- 内容区域 -->
     <div class="content-area">
-      <div class="profile-header">
-        <h1>我的文章</h1>
-        <p class="subtitle">管理你的所有文章，包括草稿和已发布</p>
+      <!-- 个人信息卡片 -->
+      <div class="profile-card" v-loading="loading">
+        <div class="profile-main">
+          <!-- 头像 -->
+          <div class="avatar-wrapper">
+            <el-avatar :size="80" :src="profile?.avatar">
+              <span class="avatar-fallback">{{ profile?.nickname?.charAt(0)?.toUpperCase() || '?' }}</span>
+            </el-avatar>
+          </div>
+
+          <!-- 信息区域 -->
+          <div class="profile-info">
+            <!-- 展示模式 -->
+            <template v-if="!editing">
+              <div class="info-row">
+                <h2 class="profile-name">{{ profile?.nickname || '-' }}</h2>
+                <el-tag :type="getRoleType(profile?.role)" size="small" class="role-tag">
+                  {{ getRoleLabel(profile?.role) }}
+                </el-tag>
+              </div>
+              <div class="info-row meta">
+                <span class="meta-item">
+                  <el-icon><User /></el-icon>
+                  用户名：{{ profile?.username || '-' }}
+                </span>
+                <span class="meta-item">
+                  <el-icon><Message /></el-icon>
+                  邮箱：{{ profile?.email || '未设置' }}
+                </span>
+                <span class="meta-item">
+                  <el-icon><Clock /></el-icon>
+                  注册时间：{{ formatTime(profile?.createTime) }}
+                </span>
+              </div>
+              <div class="info-actions">
+                <el-button type="primary" @click="startEdit">
+                  <el-icon><Edit /></el-icon> 编辑资料
+                </el-button>
+              </div>
+            </template>
+
+            <!-- 编辑模式 -->
+            <template v-else>
+              <div class="edit-form">
+                <div class="form-row">
+                  <label>昵称</label>
+                  <el-input
+                    v-model="editForm.nickname"
+                    placeholder="请输入昵称"
+                    maxlength="20"
+                    show-word-limit
+                    class="edit-input"
+                  />
+                </div>
+                <div class="form-row">
+                  <label>邮箱</label>
+                  <el-input
+                    v-model="editForm.email"
+                    placeholder="请输入邮箱（可选）"
+                    maxlength="100"
+                    class="edit-input"
+                  />
+                </div>
+                <div class="form-actions">
+                  <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
+                  <el-button @click="cancelEdit">取消</el-button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
 
-      <div class="article-table-wrapper" v-loading="loading">
-        <div v-if="articles.length > 0" class="table-debug">共 {{ total }} 篇文章</div>
+      <!-- 我的文章列表 -->
+      <div class="article-section">
+        <h2 class="section-title">我的文章</h2>
 
-        <el-table
-          v-if="articles.length > 0"
-          :data="articles"
-          style="width: 100%"
-          border
-        >
-          <el-table-column prop="title" label="标题" min-width="200">
-            <template #default="{ row }">
-              <span class="article-title" @click="router.push(`/article/${row.id}`)">
-                {{ row.title }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="分类" width="120">
-            <template #default="{ row }">
-              {{ row.category?.name || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag :type="getStatusType(row.status)" size="small">
-                {{ getStatusText(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="浏览量" width="100">
-            <template #default="{ row }">
-              {{ row.viewCount || 0 }}
-            </template>
-          </el-table-column>
-          <el-table-column label="发布时间" width="160">
-            <template #default="{ row }">
-              {{ formatTime(row.createTime) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="140">
-            <template #default="{ row }">
-              <el-button type="primary" size="small" text @click="goToEdit(row.id)">
-                编辑
-              </el-button>
-              <el-button type="danger" size="small" text @click="handleDelete(row.id)">
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="article-table-wrapper" v-loading="articleLoading">
+          <div v-if="articles.length > 0" class="table-debug">共 {{ total }} 篇文章</div>
 
-        <el-empty v-else description="还没有文章，去写一篇吧" />
-      </div>
+          <el-table
+            v-if="articles.length > 0"
+            :data="articles"
+            style="width: 100%"
+            border
+          >
+            <el-table-column prop="title" label="标题" min-width="200">
+              <template #default="{ row }">
+                <span class="article-title" @click="router.push(`/article/${row.id}`)">
+                  {{ row.title }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="分类" width="120">
+              <template #default="{ row }">
+                {{ row.category?.name || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getStatusType(row.status)" size="small">
+                  {{ getStatusText(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="浏览量" width="100">
+              <template #default="{ row }">
+                {{ row.viewCount || 0 }}
+              </template>
+            </el-table-column>
+            <el-table-column label="发布时间" width="160">
+              <template #default="{ row }">
+                {{ formatTime(row.createTime) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140">
+              <template #default="{ row }">
+                <el-button type="primary" size="small" text @click="goToEdit(row.id)">
+                  编辑
+                </el-button>
+                <el-button type="danger" size="small" text @click="handleDelete(row.id)">
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
 
-      <div class="pagination-wrapper" v-if="total > 0">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, prev, pager, next"
-          @current-change="handlePageChange"
-        />
+          <el-empty v-else description="还没有文章，去写一篇吧" />
+        </div>
+
+        <div class="pagination-wrapper" v-if="total > 0">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            layout="total, prev, pager, next"
+            @current-change="handlePageChange"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -246,23 +409,109 @@ onMounted(() => {
   padding: 32px 20px;
 }
 
-.profile-header {
-  margin-bottom: 24px;
+/* 个人信息卡片 */
+.profile-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 32px;
 }
 
-.profile-header h1 {
+.profile-main {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.avatar-wrapper {
+  flex-shrink: 0;
+}
+
+.avatar-fallback {
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.profile-name {
   color: #fff;
-  font-size: 1.75rem;
-  margin: 0 0 8px 0;
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 14px;
+  font-size: 1.5rem;
+  font-weight: 600;
   margin: 0;
 }
 
-/* 表格 */
+.role-tag {
+  font-size: 12px;
+}
+
+.info-row.meta {
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
+.info-actions {
+  margin-top: 8px;
+}
+
+/* 编辑表单 */
+.edit-form {
+  max-width: 400px;
+}
+
+.form-row {
+  margin-bottom: 16px;
+}
+
+.form-row label {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.edit-input {
+  width: 100%;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* 文章区域 */
+.article-section {
+  margin-top: 32px;
+}
+
+.section-title {
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+}
+
 .article-table-wrapper {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -292,6 +541,7 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
+/* Element Plus 暗色覆盖 */
 :deep(.el-table) {
   background: transparent !important;
   --el-table-bg-color: transparent;
@@ -364,5 +614,22 @@ onMounted(() => {
 :deep(.el-pagination .btn-next) {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:deep(.el-input__wrapper) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
+}
+
+:deep(.el-input__inner) {
+  color: #fff !important;
+}
+
+:deep(.el-input__inner::placeholder) {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+:deep(.el-input__count) {
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 </style>

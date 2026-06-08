@@ -37,3 +37,15 @@ export function getProfile() {
     method: 'get'
   })
 }
+
+/**
+ * 修改个人信息
+ * @param {Object} data - { nickname, email }
+ */
+export function updateProfile(data) {
+  return request({
+    url: '/user/profile',
+    method: 'put',
+    data
+  })
+}

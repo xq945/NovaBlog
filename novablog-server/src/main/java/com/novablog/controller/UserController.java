@@ -6,6 +6,7 @@ import com.novablog.common.UserContext;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.LoginDTO;
 import com.novablog.dto.RegisterDTO;
+import com.novablog.dto.UpdateProfileDTO;
 import com.novablog.entity.User;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.ArticleService;
@@ -14,6 +15,7 @@ import com.novablog.vo.ArticleVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -84,8 +86,21 @@ public class UserController {
         userInfo.put("avatar", user.getAvatar());
         userInfo.put("email", user.getEmail());
         userInfo.put("role", user.getRole());
+        userInfo.put("createTime", user.getCreateTime());
 
         return Result.success(userInfo);
+    }
+
+    /**
+     * 修改个人信息
+     *
+     * @param updateProfileDTO 修改参数
+     * @return 成功结果
+     */
+    @PutMapping("/profile")
+    public Result<Void> updateProfile(@RequestBody UpdateProfileDTO updateProfileDTO) {
+        userService.updateProfile(updateProfileDTO.getNickname(), updateProfileDTO.getEmail());
+        return Result.success();
     }
 
     /**

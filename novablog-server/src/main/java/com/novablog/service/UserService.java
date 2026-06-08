@@ -24,4 +24,12 @@ public interface UserService {
      * @return 包含 token、refreshToken、expiresIn、userInfo 的 Map
      */
     Map<String, Object> login(LoginDTO loginDTO);
+
+    /**
+     * 修改当前登录用户的个人信息
+     *
+     * @param nickname 昵称
+     * @param email    邮箱
+     */
+    void updateProfile(String nickname, String email);
 }

@@ -1,5 +1,6 @@
 package com.novablog.service.impl;
 
+import com.novablog.common.UserContext;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.LoginDTO;
 import com.novablog.dto.RegisterDTO;
@@ -127,5 +128,40 @@ public class UserServiceImpl implements UserService {
         result.put("userInfo", userInfo);
 
         return result;
+    }
+
+    @Override
+    public void updateProfile(String nickname, String email) {
+        // 1. 参数校验
+        if (nickname == null || nickname.isEmpty()) {
+            throw new BusinessException("昵称不能为空");
+        }
+        if (nickname.length() > 20) {
+            throw new BusinessException("昵称长度必须为1-20位");
+        }
+        if (email != null && !email.isEmpty()) {
+            if (email.length() > 100) {
+                throw new BusinessException("邮箱长度不能超过100位");
+            }
+            if (!Pattern.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", email)) {
+                throw new BusinessException("邮箱格式不正确");
+            }
+        }
+
+        // 2. 获取当前用户ID
+        Long userId = UserContext.getUserId();
+
+        // 3. 校验用户存在且未被禁用
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            throw new BusinessException(401, "用户不存在");
+        }
+        if (user.getStatus() == 0) {
+            throw new BusinessException(401, "用户已被禁用");
+        }
+
+        // 4. 执行更新（email 为空字符串时转为 null，表示清空）
+        String emailToUpdate = (email == null || email.isEmpty()) ? null : email;
+        userMapper.updateProfile(userId, nickname, emailToUpdate);
     }
 }

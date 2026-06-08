@@ -33,4 +33,16 @@ public interface UserMapper {
      * @return 影响行数
      */
     int insert(User user);
+
+    /**
+     * 更新用户个人信息（nickname 必填，email 可为 null 表示清空）
+     *
+     * @param id       用户ID
+     * @param nickname 昵称
+     * @param email    邮箱
+     * @return 影响行数
+     */
+    int updateProfile(@Param("id") Long id,
+                      @Param("nickname") String nickname,
+                      @Param("email") String email);
 }

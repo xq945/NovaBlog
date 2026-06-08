@@ -32,4 +32,12 @@
         VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{email}, #{role}, #{status})
     </insert>
 
+    <!-- 更新用户个人信息 -->
+    <update id="updateProfile">
+        UPDATE user
+        SET nickname = #{nickname},
+            email = #{email}
+        WHERE id = #{id}
+    </update>
+
 </mapper>
