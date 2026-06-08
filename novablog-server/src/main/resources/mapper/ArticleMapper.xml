@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.mapper.ArticleMapper">
+
+    <!-- 文章基础结果映射 -->
+    <resultMap id="articleResultMap" type="com.novablog.entity.Article">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="summary" column="summary"/>
+        <result property="cover" column="cover"/>
+        <result property="viewCount" column="view_count"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="userId" column="user_id"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 文章列表项 VO 映射 -->
+    <resultMap id="articleVOResultMap" type="com.novablog.vo.ArticleVO">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="summary" column="summary"/>
+        <result property="cover" column="cover"/>
+        <result property="viewCount" column="view_count"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <!-- 作者信息 -->
+        <association property="author" javaType="com.novablog.vo.UserVO">
+            <id property="id" column="author_id"/>
+            <result property="nickname" column="author_nickname"/>
+            <result property="avatar" column="author_avatar"/>
+        </association>
+        <!-- 分类信息 -->
+        <association property="category" javaType="com.novablog.vo.CategoryVO">
+            <id property="id" column="category_id"/>
+            <result property="name" column="category_name"/>
+        </association>
+    </resultMap>
+
+    <!-- 文章详情 VO 映射 -->
+    <resultMap id="articleDetailVOResultMap" type="com.novablog.vo.ArticleDetailVO" extends="articleVOResultMap">
+        <result property="content" column="content"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 公共 WHERE 条件：公开文章筛选 -->
+    <sql id="publicWhere">
+        WHERE a.status = 1
+        <if test="categoryId != null">
+            AND a.category_id = #{categoryId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <!-- 插入文章 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO article (title, content, summary, cover, user_id, category_id, status)
+        VALUES (#{title}, #{content}, #{summary}, #{cover}, #{userId}, #{categoryId}, #{status})
+    </insert>
+
+    <!-- 根据ID查询文章 -->
+    <select id="findById" resultMap="articleResultMap">
+        SELECT * FROM article WHERE id = #{id} LIMIT 1
+    </select>
+
+    <!-- 根据ID查询文章详情（含作者、分类，不限制状态，由Service层做权限判断） -->
+    <select id="findDetailById" resultMap="articleDetailVOResultMap">
+        SELECT
+            a.id, a.title, a.content, a.summary, a.cover,
+            a.view_count, a.like_count, a.status,
+            a.user_id AS author_id,
+            u.nickname AS author_nickname,
+            u.avatar AS author_avatar,
+            a.category_id,
+            c.name AS category_name,
+            a.create_time, a.update_time
+        FROM article a
+        LEFT JOIN user u ON a.user_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.id = #{id}
+        LIMIT 1
+    </select>
+
+    <!-- 根据ID查询文章（用于编辑回显等场景） -->
+    <select id="findByIdForEdit" resultMap="articleDetailVOResultMap">
+        SELECT
+            a.id, a.title, a.content, a.summary, a.cover,
+            a.view_count, a.like_count, a.status,
+            a.user_id AS author_id,
+            u.nickname AS author_nickname,
+            u.avatar AS author_avatar,
+            a.category_id,
+            c.name AS category_name,
+            a.create_time, a.update_time
+        FROM article a
+        LEFT JOIN user u ON a.user_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.id = #{id}
+        LIMIT 1
+    </select>
+
+    <!-- 分页查询文章列表（公开） -->
+    <select id="findList" resultMap="articleVOResultMap">
+        SELECT
+            a.id, a.title, a.summary, a.cover,
+            a.view_count, a.like_count, a.status,
+            a.user_id AS author_id,
+            u.nickname AS author_nickname,
+            u.avatar AS author_avatar,
+            a.category_id,
+            c.name AS category_name,
+            a.create_time
+        FROM article a
+        LEFT JOIN user u ON a.user_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        <include refid="publicWhere"/>
+        ORDER BY a.create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 查询文章总数（公开） -->
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM article a
+        <include refid="publicWhere"/>
+    </select>
+
+    <!-- 查询当前用户的文章列表（包含草稿） -->
+    <select id="findByUserId" resultMap="articleVOResultMap">
+        SELECT
+            a.id, a.title, a.summary, a.cover,
+            a.view_count, a.like_count, a.status,
+            a.user_id AS author_id,
+            u.nickname AS author_nickname,
+            u.avatar AS author_avatar,
+            a.category_id,
+            c.name AS category_name,
+            a.create_time
+        FROM article a
+        LEFT JOIN user u ON a.user_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.user_id = #{userId}
+        ORDER BY a.create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 查询当前用户的文章总数 -->
+    <select id="countByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM article WHERE user_id = #{userId}
+    </select>
+
+    <!-- 更新文章 -->
+    <update id="update">
+        UPDATE article
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="summary != null">summary = #{summary},</if>
+            <if test="cover != null">cover = #{cover},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="viewCount != null">view_count = #{viewCount},</if>
+            <if test="likeCount != null">like_count = #{likeCount},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 浏览量 +1（原生SQL，避免误触 update_time） -->
+    <update id="incrementViewCount">
+        UPDATE article SET view_count = view_count + 1 WHERE id = #{id}
+    </update>
+
+    <!-- 删除文章 -->
+    <delete id="deleteById">
+        DELETE FROM article WHERE id = #{id}
+    </delete>
+
+</mapper>

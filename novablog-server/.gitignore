@@ -1,0 +1,8 @@
+target/
+*.class
+*.jar
+*.war
+*.iml
+.idea/
+*.log
+application-dev.yml

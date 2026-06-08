@@ -1,0 +1,73 @@
+# 1. 服务端口
+server:
+  port: 8080
+
+# 2. Spring 核心配置
+spring:
+  # 激活开发环境
+  profiles:
+    active: dev
+  # JSON 时间格式化（全局统一）
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  # 文件上传限制（最大 5MB）
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+  # 强制启用 ANSI 颜色输出（Windows cmd 下日志显示彩色）
+  output:
+    ansi:
+      enabled: always
+
+  # 3. 数据库配置（MySQL8 + Hikari 连接池）
+  datasource:
+    driver-class-name: ${MYSQL_DRIVER}
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+    # Hikari 连接池（高性能，SpringBoot 默认）
+    hikari:
+      minimum-idle: 5           # 最小空闲连接
+      maximum-pool-size: 20     # 最大连接数
+      idle-timeout: 300000      # 空闲超时 5 分钟
+      max-lifetime: 1800000     # 连接最大生命周期 30 分钟
+      connection-timeout: 30000 # 连接超时 30 秒
+      pool-name: NovaBlogHikariCP
+
+  # 4. Redis 配置（缓存、登录状态）
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      database: ${REDIS_DATABASE}
+      timeout: 3000ms
+      # 连接池
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1000ms
+
+# 5. MyBatis 配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml       # mapper XML 文件路径
+  type-aliases-package: com.novablog.entity      # 实体类别名包
+  configuration:
+    map-underscore-to-camel-case: true           # 下划线自动转驼峰（关键！）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 打印 SQL 日志
+
+# 6. JWT 登录认证配置
+jwt:
+  secret: ${NOVABLOG_JWT_SECRET}
+  expiration: 7200000            # Token 过期时间：2 小时
+  refresh-expiration: 604800000   # 刷新 Token：7 天
+
+# 7. 日志配置
+logging:
+  level:
+    com.novablog.mapper: debug  # 打印 Mapper SQL

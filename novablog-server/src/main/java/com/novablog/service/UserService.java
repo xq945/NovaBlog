@@ -1,0 +1,27 @@
+package com.novablog.service;
+
+import com.novablog.dto.LoginDTO;
+import com.novablog.dto.RegisterDTO;
+
+import java.util.Map;
+
+/**
+ * 用户业务层接口
+ */
+public interface UserService {
+
+    /**
+     * 用户注册
+     *
+     * @param registerDTO 注册参数
+     */
+    void register(RegisterDTO registerDTO);
+
+    /**
+     * 用户登录
+     *
+     * @param loginDTO 登录参数
+     * @return 包含 token、refreshToken、expiresIn、userInfo 的 Map
+     */
+    Map<String, Object> login(LoginDTO loginDTO);
+}

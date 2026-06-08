@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.mapper.UserMapper">
+
+    <resultMap id="userResultMap" type="com.novablog.entity.User">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="password" column="password"/>
+        <result property="nickname" column="nickname"/>
+        <result property="avatar" column="avatar"/>
+        <result property="email" column="email"/>
+        <result property="role" column="role"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 根据用户名查询用户 -->
+    <select id="findByUsername" resultMap="userResultMap">
+        SELECT * FROM user WHERE username = #{username} LIMIT 1
+    </select>
+
+    <!-- 根据用户ID查询用户 -->
+    <select id="findById" resultMap="userResultMap">
+        SELECT * FROM user WHERE id = #{id} LIMIT 1
+    </select>
+
+    <!-- 插入新用户 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user (username, password, nickname, avatar, email, role, status)
+        VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{email}, #{role}, #{status})
+    </insert>
+
+</mapper>

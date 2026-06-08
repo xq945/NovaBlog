@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    password: YOUR_MYSQL_PASSWORD
+  data:
+    redis:
+      password: YOUR_REDIS_PASSWORD
+
+# JWT 密钥：高强度，包含大小写+数字+特殊符号，长度 >= 64 位
+jwt:
+  secret: YOUR_JWT_SECRET_HERE_64_CHARS_MIN_WITH_UPPER_LOWER_NUMBER_SPECIAL
