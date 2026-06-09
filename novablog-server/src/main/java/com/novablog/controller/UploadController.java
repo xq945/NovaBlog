@@ -88,7 +88,7 @@ public class UploadController {
         String uuid = UUID.randomUUID().toString().replace("-", "");
         String newFilename = uuid + "." + extension.toLowerCase();
         String dateDir = LocalDate.now().format(DATE_FORMATTER);
-        String objectKey = "uploads/" + dateDir + "/" + newFilename;
+        String objectKey = "NovaBlog/" + dateDir + "/" + newFilename;
 
         // 6. 上传到OSS
         OSS ossClient = null;
