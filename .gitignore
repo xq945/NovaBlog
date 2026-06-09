@@ -26,3 +26,6 @@ Thumbs.db
 
 # Design docs (not for repo)
 design/
+
+# Claude Code instructions (project-level)
+CLAUDE.md
