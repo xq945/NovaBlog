@@ -599,17 +599,31 @@ onUnmounted(() => {
 .home .el-pagination .el-pager li {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.home .el-pagination .el-pager li:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .home .el-pagination .el-pager li.is-active {
   background: #409eff;
   border-color: #409eff;
+  color: #fff;
 }
 
 .home .el-pagination .btn-prev,
 .home .el-pagination .btn-next {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.home .el-pagination .btn-prev:hover,
+.home .el-pagination .btn-next:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* 覆盖输入框和选择框样式 */

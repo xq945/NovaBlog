@@ -703,17 +703,31 @@ onMounted(() => {
 :deep(.el-pagination .el-pager li) {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+:deep(.el-pagination .el-pager li:hover) {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 :deep(.el-pagination .el-pager li.is-active) {
   background: #409eff;
   border-color: #409eff;
+  color: #fff;
 }
 
 :deep(.el-pagination .btn-prev),
 :deep(.el-pagination .btn-next) {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+:deep(.el-pagination .btn-prev:hover),
+:deep(.el-pagination .btn-next:hover) {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 :deep(.el-input__wrapper) {
@@ -729,7 +743,20 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.4) !important;
 }
 
+:deep(.el-input__suffix),
+:deep(.el-input__suffix-inner) {
+  background: transparent !important;
+}
+
 :deep(.el-input__count) {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+:deep(.el-input__count-inner) {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
   color: rgba(255, 255, 255, 0.5) !important;
 }
 </style>

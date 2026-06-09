@@ -776,4 +776,9 @@ onMounted(() => {
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+/* 修复分页 is-active 页码蓝底蓝字问题 */
+:deep(.el-pagination .el-pager li.is-active) {
+  color: #fff;
+}
 </style>

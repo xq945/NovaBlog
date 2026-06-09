@@ -27,3 +27,11 @@
 .register-page .el-input__inner::placeholder {
   color: rgba(255, 255, 255, 0.35) !important;
 }
+
+/* 个人资料页输入框字符计数器 — 深色主题下去除白色背景 */
+.profile-page .el-input__count-inner {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}

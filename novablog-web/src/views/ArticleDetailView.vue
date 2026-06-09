@@ -898,17 +898,31 @@ onMounted(() => {
 .comment-section .el-pagination .el-pager li {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.comment-section .el-pagination .el-pager li:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .comment-section .el-pagination .el-pager li.is-active {
   background: #409eff;
   border-color: #409eff;
+  color: #fff;
 }
 
 .comment-section .el-pagination .btn-prev,
 .comment-section .el-pagination .btn-next {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.comment-section .el-pagination .btn-prev:hover,
+.comment-section .el-pagination .btn-next:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* 覆盖输入框样式 */
