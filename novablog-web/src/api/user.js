@@ -40,7 +40,7 @@ export function getProfile() {
 
 /**
  * 修改个人信息
- * @param {Object} data - { nickname, email }
+ * @param {Object} data - { nickname, email, avatar }
  */
 export function updateProfile(data) {
   return request({

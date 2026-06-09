@@ -37,16 +37,18 @@ public interface UserMapper {
     int insert(User user);
 
     /**
-     * 更新用户个人信息（nickname 必填，email 可为 null 表示清空）
+     * 更新用户个人信息（nickname 必填，email 和 avatar 可为 null 表示清空）
      *
      * @param id       用户ID
      * @param nickname 昵称
      * @param email    邮箱
+     * @param avatar   头像URL
      * @return 影响行数
      */
     int updateProfile(@Param("id") Long id,
                       @Param("nickname") String nickname,
-                      @Param("email") String email);
+                      @Param("email") String email,
+                      @Param("avatar") String avatar);
 
     /**
      * 分页查询用户列表（按注册时间倒序）

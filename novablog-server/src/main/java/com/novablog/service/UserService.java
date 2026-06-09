@@ -30,6 +30,7 @@ public interface UserService {
      *
      * @param nickname 昵称
      * @param email    邮箱
+     * @param avatar   头像URL
      */
-    void updateProfile(String nickname, String email);
+    void updateProfile(String nickname, String email, String avatar);
 }

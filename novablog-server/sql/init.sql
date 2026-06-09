@@ -13,7 +13,7 @@ CREATE TABLE `user` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `username` VARCHAR(50) NOT NULL COMMENT '用户名',
     `password` VARCHAR(255) NOT NULL COMMENT '密码（BCrypt加密）',
-    `nickname` VARCHAR(50) NOT NULL COMMENT '昵称',
+    `nickname` VARCHAR(100) NOT NULL COMMENT '昵称',
     `avatar` VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
     `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
     `role` VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色：ADMIN/USER',
@@ -27,7 +27,7 @@ CREATE TABLE `user` (
 -- 初始化管理员账号（密码：Admin@123）
 -- BCrypt 加密后的密码，强度因子 10
 INSERT INTO `user` (`username`, `password`, `nickname`, `role`, `status`) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EO', '管理员', 'ADMIN', 1);
+('admin', '$2b$10$nrQe9FEddVuHjxFIfSnKge3VS3UCBgMg0QDa9mTDNDBirHMYyxs6m', '管理员', 'ADMIN', 1);
 
 -- 2. 分类表
 DROP TABLE IF EXISTS `category`;

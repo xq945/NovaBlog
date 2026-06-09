@@ -7,6 +7,7 @@ import 'md-editor-v3/lib/style.css'
 import { publishArticle, updateArticle, getArticleDetail } from '../api/article'
 import { getCategoryList } from '../api/category'
 import { getTagList } from '../api/tag'
+import { uploadFile } from '../api/upload'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +15,7 @@ const router = useRouter()
 const isEdit = ref(false)
 const articleId = ref(null)
 const loading = ref(false)
+const coverLoading = ref(false)
 const categories = ref([])
 const tags = ref([])
 
@@ -150,6 +152,74 @@ const goBack = () => {
   router.back()
 }
 
+/**
+ * 封面图上传前的校验
+ */
+const beforeCoverUpload = (file) => {
+  const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif' || file.type === 'image/webp'
+  if (!isJpgOrPng) {
+    ElMessage.error('仅支持 jpg/png/gif/webp 格式的图片')
+    return false
+  }
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isLt5M) {
+    ElMessage.error('图片大小不能超过 5MB')
+    return false
+  }
+  return true
+}
+
+/**
+ * 自定义封面图上传
+ */
+const handleCoverUpload = async (options) => {
+  coverLoading.value = true
+  try {
+    const res = await uploadFile(options.file)
+    if (res.code === 200) {
+      form.cover = res.data.url
+      ElMessage.success('封面图上传成功')
+    } else {
+      ElMessage.error(res.message || '上传失败')
+      options.onError()
+    }
+  } catch (error) {
+    ElMessage.error('上传失败')
+    options.onError()
+  } finally {
+    coverLoading.value = false
+  }
+}
+
+/**
+ * 删除封面图
+ */
+const removeCover = () => {
+  form.cover = ''
+}
+
+/**
+ * MdEditor 图片上传回调
+ */
+const onUploadImg = async (files, callback) => {
+  try {
+    const res = await Promise.all(
+      files.map(file => uploadFile(file))
+    )
+    const urls = res.map(item => {
+      if (item.code === 200) {
+        return item.data.url
+      }
+      throw new Error(item.message || '上传失败')
+    })
+    callback(urls)
+  } catch (error) {
+    ElMessage.error(error.message || '图片上传失败')
+    // 通知 MdEditor 上传失败，取消 loading 状态
+    callback([])
+  }
+}
+
 onMounted(() => {
   fetchCategories()
   fetchTags()
@@ -232,11 +302,35 @@ onMounted(() => {
           </el-col>
         </el-row>
 
-        <el-form-item label="封面图 URL">
-          <el-input
-            v-model="form.cover"
-            placeholder="https://example.com/image.jpg（本阶段不支持上传，请填写外部图片链接）"
-          />
+        <el-form-item label="封面图">
+          <div class="cover-uploader">
+            <el-upload
+              v-if="!form.cover"
+              class="cover-upload"
+              :http-request="handleCoverUpload"
+              :before-upload="beforeCoverUpload"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              :show-file-list="false"
+            >
+              <div class="upload-placeholder" v-loading="coverLoading">
+                <el-icon :size="28"><Plus /></el-icon>
+                <span class="upload-text">点击上传封面图</span>
+                <span class="upload-hint">支持 jpg/png/gif/webp，最大5MB</span>
+              </div>
+            </el-upload>
+            <div v-else class="cover-preview">
+              <el-image
+                :src="form.cover"
+                fit="cover"
+                class="preview-img"
+              />
+              <div class="cover-actions">
+                <el-button type="danger" size="small" circle @click="removeCover">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </div>
+            </div>
+          </div>
         </el-form-item>
 
         <el-form-item label="摘要（可选，留空则自动从正文生成）">
@@ -254,6 +348,7 @@ onMounted(() => {
           <MdEditor
             v-model="form.content"
             placeholder="请输入 Markdown 格式的正文..."
+            @onUploadImg="onUploadImg"
             :toolbars="[
               'bold',
               'underline',
@@ -333,5 +428,62 @@ onMounted(() => {
 
 .content-editor :deep(.md-editor) {
   border-radius: 8px;
+}
+
+/* 封面图上传 */
+.cover-uploader {
+  width: 100%;
+}
+
+.cover-upload :deep(.el-upload) {
+  width: 100%;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 180px;
+  border: 2px dashed #dcdfe6;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  color: #909399;
+}
+
+.upload-placeholder:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.upload-text {
+  font-size: 14px;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #a8abb2;
+}
+
+.cover-preview {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-img {
+  width: 100%;
+  height: 100%;
+}
+
+.cover-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }
 </style>

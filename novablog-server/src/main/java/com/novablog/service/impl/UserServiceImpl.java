@@ -131,7 +131,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void updateProfile(String nickname, String email) {
+    public void updateProfile(String nickname, String email, String avatar) {
         // 1. 参数校验
         if (nickname == null || nickname.isEmpty()) {
             throw new BusinessException("昵称不能为空");
@@ -147,6 +147,10 @@ public class UserServiceImpl implements UserService {
                 throw new BusinessException("邮箱格式不正确");
             }
         }
+        // avatar 为URL格式，可选，长度不超过500
+        if (avatar != null && !avatar.isEmpty() && avatar.length() > 500) {
+            throw new BusinessException("头像链接过长");
+        }
 
         // 2. 获取当前用户ID
         Long userId = UserContext.getUserId();
@@ -160,8 +164,9 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(401, "用户已被禁用");
         }
 
-        // 4. 执行更新（email 为空字符串时转为 null，表示清空）
+        // 4. 执行更新（email/avatar 为空字符串时转为 null，表示清空）
         String emailToUpdate = (email == null || email.isEmpty()) ? null : email;
-        userMapper.updateProfile(userId, nickname, emailToUpdate);
+        String avatarToUpdate = (avatar == null || avatar.isEmpty()) ? null : avatar;
+        userMapper.updateProfile(userId, nickname, emailToUpdate, avatarToUpdate);
     }
 }

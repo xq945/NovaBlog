@@ -17,4 +17,9 @@ public class UpdateProfileDTO {
      * 邮箱，可选，长度不超过100位
      */
     private String email;
+
+    /**
+     * 头像URL，可选
+     */
+    private String avatar;
 }

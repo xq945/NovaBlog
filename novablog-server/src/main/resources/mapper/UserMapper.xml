@@ -51,7 +51,8 @@
     <update id="updateProfile">
         UPDATE user
         SET nickname = #{nickname},
-            email = #{email}
+            email = #{email},
+            avatar = #{avatar}
         WHERE id = #{id}
     </update>
 

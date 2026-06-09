@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMyArticles, deleteArticle } from '../api/article'
 import { getProfile, updateProfile } from '../api/user'
+import { uploadFile } from '../api/upload'
 import { useUserStore } from '../stores'
 
 const router = useRouter()
@@ -14,9 +15,11 @@ const profile = ref(null)
 const loading = ref(false)
 const editing = ref(false)
 const saving = ref(false)
+const avatarLoading = ref(false)
 const editForm = reactive({
   nickname: '',
-  email: ''
+  email: '',
+  avatar: ''
 })
 
 const fetchProfile = async () => {
@@ -36,11 +39,13 @@ const fetchProfile = async () => {
 const startEdit = () => {
   editForm.nickname = profile.value?.nickname || ''
   editForm.email = profile.value?.email || ''
+  editForm.avatar = profile.value?.avatar || ''
   editing.value = true
 }
 
 const cancelEdit = () => {
   editing.value = false
+  avatarLoading.value = false
 }
 
 const handleSave = async () => {
@@ -68,7 +73,8 @@ const handleSave = async () => {
   try {
     const res = await updateProfile({
       nickname,
-      email: email || null
+      email: email || null,
+      avatar: editForm.avatar || null
     })
     if (res.code === 200) {
       ElMessage.success('保存成功')
@@ -85,6 +91,45 @@ const handleSave = async () => {
     ElMessage.error(error.message || '保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+/**
+ * 头像上传前的校验
+ */
+const beforeAvatarUpload = (file) => {
+  const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif' || file.type === 'image/webp'
+  if (!isJpgOrPng) {
+    ElMessage.error('仅支持 jpg/png/gif/webp 格式的图片')
+    return false
+  }
+  const isLt2M = file.size / 1024 / 1024 < 2
+  if (!isLt2M) {
+    ElMessage.error('头像大小不能超过 2MB')
+    return false
+  }
+  return true
+}
+
+/**
+ * 自定义头像上传
+ */
+const handleAvatarUpload = async (options) => {
+  avatarLoading.value = true
+  try {
+    const res = await uploadFile(options.file)
+    if (res.code === 200) {
+      editForm.avatar = res.data.url
+      ElMessage.success('头像上传成功')
+    } else {
+      ElMessage.error(res.message || '上传失败')
+      options.onError()
+    }
+  } catch (error) {
+    ElMessage.error('上传失败')
+    options.onError()
+  } finally {
+    avatarLoading.value = false
   }
 }
 
@@ -207,9 +252,30 @@ onMounted(() => {
         <div class="profile-main">
           <!-- 头像 -->
           <div class="avatar-wrapper">
-            <el-avatar :size="80" :src="profile?.avatar">
-              <span class="avatar-fallback">{{ profile?.nickname?.charAt(0)?.toUpperCase() || '?' }}</span>
-            </el-avatar>
+            <template v-if="!editing">
+              <el-avatar :size="80" :src="profile?.avatar">
+                <span class="avatar-fallback">{{ profile?.nickname?.charAt(0)?.toUpperCase() || '?' }}</span>
+              </el-avatar>
+            </template>
+            <template v-else>
+              <el-upload
+                class="avatar-uploader"
+                :http-request="handleAvatarUpload"
+                :before-upload="beforeAvatarUpload"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                :show-file-list="false"
+              >
+                <div class="avatar-edit" v-loading="avatarLoading">
+                  <el-avatar :size="80" :src="editForm.avatar">
+                    <span class="avatar-fallback">{{ editForm.nickname?.charAt(0)?.toUpperCase() || '?' }}</span>
+                  </el-avatar>
+                  <div class="avatar-overlay">
+                    <el-icon :size="20"><Camera /></el-icon>
+                    <span>更换头像</span>
+                  </div>
+                </div>
+              </el-upload>
+            </template>
           </div>
 
           <!-- 信息区域 -->
@@ -429,6 +495,37 @@ onMounted(() => {
 
 .avatar-wrapper {
   flex-shrink: 0;
+}
+
+.avatar-uploader :deep(.el-upload) {
+  display: block;
+}
+
+.avatar-edit {
+  position: relative;
+  cursor: pointer;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 50%;
+}
+
+.avatar-edit:hover .avatar-overlay {
+  opacity: 1;
 }
 
 .avatar-fallback {

@@ -11,11 +11,13 @@ spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
-  # 文件上传限制（最大 5MB）
+  # 文件上传限制
+  # max-file-size: 单文件最大 5MB（后端代码中同步校验）
+  # max-request-size: 整个请求最大 10MB，需大于 max-file-size 以容纳 multipart 边界等开销
   servlet:
     multipart:
       max-file-size: 5MB
-      max-request-size: 5MB
+      max-request-size: 10MB
 
   # 强制启用 ANSI 颜色输出（Windows cmd 下日志显示彩色）
   output:
@@ -71,3 +73,11 @@ jwt:
 logging:
   level:
     com.novablog.mapper: debug  # 打印 Mapper SQL
+
+# 8. 阿里云OSS配置
+aliyun:
+  oss:
+    endpoint: ${ALIYUN_OSS_ENDPOINT}          # OSS服务端点，如 oss-cn-beijing.aliyuncs.com
+    bucket: ${ALIYUN_OSS_BUCKET}              # Bucket名称
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}      # RAM用户AccessKey ID
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}  # RAM用户AccessKey Secret

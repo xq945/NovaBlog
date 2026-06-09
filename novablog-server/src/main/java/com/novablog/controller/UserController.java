@@ -103,7 +103,11 @@ public class UserController {
      */
     @PutMapping("/profile")
     public Result<Void> updateProfile(@RequestBody UpdateProfileDTO updateProfileDTO) {
-        userService.updateProfile(updateProfileDTO.getNickname(), updateProfileDTO.getEmail());
+        userService.updateProfile(
+                updateProfileDTO.getNickname(),
+                updateProfileDTO.getEmail(),
+                updateProfileDTO.getAvatar()
+        );
         return Result.success();
     }
 
