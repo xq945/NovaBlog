@@ -20,6 +20,7 @@ Thumbs.db
 
 # Claude
 .claude/
+.mcp.json
 
 # Misc
 计划书*

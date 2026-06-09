@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:cpolar": "vite --mode cpolar",
+    "dev:cpolar:live": "node scripts/dev-cpolar.js",
     "build": "vite build",
     "preview": "vite preview"
   },

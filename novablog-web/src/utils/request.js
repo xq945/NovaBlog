@@ -2,8 +2,11 @@ import axios from 'axios'
 import { useUserStore } from '../stores'
 import { ElMessage } from 'element-plus'
 
+// 支持通过环境变量切换 API 地址，用于内网穿透等场景
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const request = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 10000
 })
 
@@ -82,7 +85,7 @@ request.interceptors.response.use(
 
       try {
         // 调用刷新接口，携带 Refresh Token
-        const refreshRes = await axios.post('/api/auth/refresh', null, {
+        const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, null, {
           headers: { Authorization: 'Bearer ' + userStore.refreshToken }
         })
 
