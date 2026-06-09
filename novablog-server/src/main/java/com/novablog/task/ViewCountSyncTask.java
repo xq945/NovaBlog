@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -38,24 +40,52 @@ public class ViewCountSyncTask {
             return;
         }
 
-        // 2. 批量读取 Redis 值并更新 MySQL
-        int successCount = 0;
-        int failCount = 0;
+        // 2. 收集所有 articleId 和 viewCount
+        List<Long> articleIdList = new ArrayList<>();
+        List<Long> viewCountList = new ArrayList<>();
+        int skipCount = 0;
+
         for (String key : keys) {
             try {
                 String articleIdStr = key.substring(key.lastIndexOf(":") + 1);
                 Long articleId = Long.parseLong(articleIdStr);
                 String viewCountStr = redisUtil.get(key);
                 if (viewCountStr != null) {
-                    Long viewCount = Long.parseLong(viewCountStr);
-                    articleMapper.updateViewCount(articleId, viewCount);
-                    successCount++;
+                    articleIdList.add(articleId);
+                    viewCountList.add(Long.parseLong(viewCountStr));
+                } else {
+                    skipCount++;
                 }
             } catch (Exception e) {
-                failCount++;
-                log.error("同步浏览量失败, key={}", key, e);
+                skipCount++;
+                log.error("读取 Redis 浏览量失败, key={}", key, e);
             }
         }
-        log.info("浏览量同步完成, 成功 {} 条, 失败 {} 条", successCount, failCount);
+
+        if (articleIdList.isEmpty()) {
+            log.info("浏览量同步：无有效数据需要同步，跳过 {} 条", skipCount);
+            return;
+        }
+
+        // 3. 批量更新 MySQL（CASE WHEN 批量更新，效率远高于逐条 UPDATE）
+        try {
+            int updated = articleMapper.batchUpdateViewCount(articleIdList, viewCountList);
+            log.info("浏览量同步完成, 批量更新 {} 条, 跳过 {} 条", updated, skipCount);
+        } catch (Exception e) {
+            log.error("批量同步浏览量失败, 数据量={}", articleIdList.size(), e);
+            // 降级：逐条更新
+            int successCount = 0;
+            int failCount = 0;
+            for (int i = 0; i < articleIdList.size(); i++) {
+                try {
+                    articleMapper.updateViewCount(articleIdList.get(i), viewCountList.get(i));
+                    successCount++;
+                } catch (Exception ex) {
+                    failCount++;
+                    log.error("逐条同步浏览量失败, articleId={}", articleIdList.get(i), ex);
+                }
+            }
+            log.info("降级逐条同步完成, 成功 {} 条, 失败 {} 条", successCount, failCount);
+        }
     }
 }

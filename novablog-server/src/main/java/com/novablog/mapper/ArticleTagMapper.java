@@ -36,4 +36,13 @@ public interface ArticleTagMapper {
      * @return 影响行数
      */
     int deleteByArticleId(@Param("articleId") Long articleId);
+
+    /**
+     * 根据文章ID和标签ID列表批量删除关联（增量更新用）
+     *
+     * @param articleId 文章ID
+     * @param tagIds    标签ID列表
+     * @return 影响行数
+     */
+    int deleteByArticleIdAndTagIds(@Param("articleId") Long articleId, @Param("tagIds") List<Long> tagIds);
 }

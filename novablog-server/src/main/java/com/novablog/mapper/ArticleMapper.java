@@ -116,6 +116,16 @@ public interface ArticleMapper {
     int updateViewCount(@Param("id") Long id, @Param("viewCount") Long viewCount);
 
     /**
+     * 批量更新浏览量（定时任务同步用，效率高于逐条更新）
+     *
+     * @param articleIdList  文章ID列表
+     * @param viewCountList  对应浏览量列表
+     * @return 影响行数
+     */
+    int batchUpdateViewCount(@Param("articleIdList") List<Long> articleIdList,
+                              @Param("viewCountList") List<Long> viewCountList);
+
+    /**
      * 查询所有已发布文章（Redis初始化用）
      *
      * @return 文章列表

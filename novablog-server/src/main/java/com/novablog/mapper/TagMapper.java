@@ -1,5 +1,6 @@
 package com.novablog.mapper;
 
+import com.novablog.dto.ArticleTagDTO;
 import com.novablog.entity.Tag;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -74,4 +75,12 @@ public interface TagMapper {
      * @return 影响行数
      */
     int deleteArticleTagByTagId(@Param("tagId") Long tagId);
+
+    /**
+     * 根据文章ID列表批量查询标签关联
+     *
+     * @param articleIds 文章ID列表
+     * @return 文章标签关联列表
+     */
+    List<ArticleTagDTO> findRelationsByArticleIds(@Param("articleIds") List<Long> articleIds);
 }

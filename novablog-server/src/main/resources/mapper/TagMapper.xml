@@ -51,4 +51,16 @@
         DELETE FROM article_tag WHERE tag_id = #{tagId}
     </delete>
 
+    <!-- 根据文章ID列表批量查询标签关联 -->
+    <select id="findRelationsByArticleIds" resultType="com.novablog.dto.ArticleTagDTO">
+        SELECT at.article_id as articleId, t.id as tagId, t.name as tagName
+        FROM article_tag at
+        INNER JOIN tag t ON at.tag_id = t.id
+        WHERE at.article_id IN
+        <foreach collection="articleIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY at.article_id, t.id
+    </select>
+
 </mapper>

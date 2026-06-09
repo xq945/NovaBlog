@@ -182,6 +182,20 @@
         UPDATE article SET view_count = #{viewCount} WHERE id = #{id}
     </update>
 
+    <!-- 批量更新浏览量（定时任务同步用，CASE WHEN 批量更新效率更高） -->
+    <update id="batchUpdateViewCount">
+        UPDATE article
+        SET view_count = CASE id
+        <foreach collection="articleIdList" item="articleId" index="index">
+            WHEN #{articleId} THEN #{viewCountList[${index}]}
+        </foreach>
+        END
+        WHERE id IN
+        <foreach collection="articleIdList" item="articleId" open="(" separator="," close=")">
+            #{articleId}
+        </foreach>
+    </update>
+
     <!-- 查询所有已发布文章（Redis初始化用） -->
     <select id="findAllPublished" resultMap="articleResultMap">
         SELECT id, view_count, like_count FROM article WHERE status = 1

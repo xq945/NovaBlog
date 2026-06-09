@@ -21,4 +21,14 @@
         DELETE FROM article_tag WHERE article_id = #{articleId}
     </delete>
 
+    <!-- 根据文章ID和标签ID列表批量删除关联（增量更新用） -->
+    <delete id="deleteByArticleIdAndTagIds">
+        DELETE FROM article_tag
+        WHERE article_id = #{articleId}
+        AND tag_id IN
+        <foreach collection="tagIds" item="tagId" open="(" separator="," close=")">
+            #{tagId}
+        </foreach>
+    </delete>
+
 </mapper>

@@ -4,6 +4,7 @@ import com.novablog.common.PageResult;
 import com.novablog.common.UserContext;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.ArticleDTO;
+import com.novablog.dto.ArticleTagDTO;
 import com.novablog.entity.Article;
 import com.novablog.entity.Category;
 import com.novablog.entity.Tag;
@@ -25,8 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -168,13 +172,18 @@ public class ArticleServiceImpl implements ArticleService {
         // 4. 查询列表和总数
         List<ArticleVO> list = articleMapper.findList(categoryId, keyword, offset, size);
         Long total = articleMapper.countList(categoryId, keyword);
+        if (list.isEmpty()) {
+            return new PageResult<>(total, list);
+        }
 
-        // 5. 查询每篇文章的标签，并从 Redis 读取实时计数
+        // 5. 批量查询标签（避免 N+1 问题）
+        List<Long> articleIds = list.stream().map(ArticleVO::getId).collect(Collectors.toList());
+        Map<Long, List<String>> tagMap = findTagNamesByArticleIds(articleIds);
+
+        // 6. 组装结果：标签 + Redis 实时计数
         for (ArticleVO article : list) {
-            List<String> tagNames = findTagNamesByArticleId(article.getId());
-            article.setTags(tagNames);
+            article.setTags(tagMap.getOrDefault(article.getId(), new ArrayList<>()));
 
-            // 从 Redis 读取实时浏览量和点赞数
             Long articleId = article.getId();
             try {
                 String viewCountStr = redisUtil.get(KEY_VIEW + articleId);
@@ -343,15 +352,46 @@ public class ArticleServiceImpl implements ArticleService {
         // 7. 更新文章（update_time 在 Mapper XML 中手动设置）
         articleMapper.update(updateArticle);
 
-        // 8. 标签关联处理
+        // 8. 标签关联处理（增量更新，避免全量删除再插入）
         List<Long> tagIds = articleDTO.getTagIds();
         if (tagIds != null) {
-            articleTagMapper.deleteByArticleId(articleId);
-            if (!tagIds.isEmpty()) {
-                List<Long> validTagIds = filterValidTagIds(tagIds);
-                if (!validTagIds.isEmpty()) {
-                    articleTagMapper.batchInsert(articleId, validTagIds);
+            // 获取当前标签
+            List<Tag> currentTags = tagMapper.findByArticleId(articleId);
+            Set<Long> currentTagIds = currentTags.stream()
+                    .map(Tag::getId)
+                    .collect(Collectors.toSet());
+
+            // 过滤并校验新标签
+            Set<Long> newTagIdSet = new LinkedHashSet<>();
+            for (Long tagId : tagIds) {
+                if (tagId != null) {
+                    newTagIdSet.add(tagId);
                 }
+            }
+            List<Long> validTagIds = new ArrayList<>();
+            for (Long tagId : newTagIdSet) {
+                if (tagMapper.findById(tagId) != null) {
+                    validTagIds.add(tagId);
+                    if (validTagIds.size() >= MAX_TAG_COUNT) {
+                        break;
+                    }
+                }
+            }
+            Set<Long> validTagIdSet = new LinkedHashSet<>(validTagIds);
+
+            // 计算差异
+            Set<Long> toDelete = new HashSet<>(currentTagIds);
+            toDelete.removeAll(validTagIdSet);
+
+            Set<Long> toAdd = new HashSet<>(validTagIdSet);
+            toAdd.removeAll(currentTagIds);
+
+            // 执行增量操作
+            if (!toDelete.isEmpty()) {
+                articleTagMapper.deleteByArticleIdAndTagIds(articleId, new ArrayList<>(toDelete));
+            }
+            if (!toAdd.isEmpty()) {
+                articleTagMapper.batchInsert(articleId, new ArrayList<>(toAdd));
             }
         }
 
@@ -426,11 +466,17 @@ public class ArticleServiceImpl implements ArticleService {
         // 3. 查询列表和总数
         List<ArticleVO> list = articleMapper.findByUserId(userId, offset, size);
         Long total = articleMapper.countByUserId(userId);
+        if (list.isEmpty()) {
+            return new PageResult<>(total, list);
+        }
 
-        // 4. 查询每篇文章的标签，并从 Redis 读取实时计数
+        // 4. 批量查询标签（避免 N+1 问题）
+        List<Long> articleIds = list.stream().map(ArticleVO::getId).collect(Collectors.toList());
+        Map<Long, List<String>> tagMap = findTagNamesByArticleIds(articleIds);
+
+        // 5. 组装结果：标签 + Redis 实时计数
         for (ArticleVO article : list) {
-            List<String> tagNames = findTagNamesByArticleId(article.getId());
-            article.setTags(tagNames);
+            article.setTags(tagMap.getOrDefault(article.getId(), new ArrayList<>()));
 
             Long articleId = article.getId();
             try {
@@ -455,7 +501,6 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    @Transactional
     public void like(Long articleId) {
         // 1. 参数校验
         if (articleId == null || articleId <= 0) {
@@ -504,7 +549,6 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    @Transactional
     public void unlike(Long articleId) {
         // 1. 参数校验
         if (articleId == null || articleId <= 0) {
@@ -632,11 +676,17 @@ public class ArticleServiceImpl implements ArticleService {
         // 3. 查询列表和总数
         List<ArticleVO> list = articleMapper.findAdminList(keyword, offset, size);
         Long total = articleMapper.countAdminList(keyword);
+        if (list.isEmpty()) {
+            return new PageResult<>(total, list);
+        }
 
-        // 4. 补充标签和 Redis 实时计数
+        // 4. 批量查询标签（避免 N+1 问题）
+        List<Long> articleIds = list.stream().map(ArticleVO::getId).collect(Collectors.toList());
+        Map<Long, List<String>> tagMap = findTagNamesByArticleIds(articleIds);
+
+        // 5. 组装结果：标签 + Redis 实时计数
         for (ArticleVO article : list) {
-            List<String> tagNames = findTagNamesByArticleId(article.getId());
-            article.setTags(tagNames);
+            article.setTags(tagMap.getOrDefault(article.getId(), new ArrayList<>()));
 
             Long articleId = article.getId();
             try {
@@ -764,11 +814,14 @@ public class ArticleServiceImpl implements ArticleService {
                         + (hotVO.getLikeCount() != null ? hotVO.getLikeCount() : 0) * 3.0);
             }
 
-            // 查询标签
-            List<String> tagNames = findTagNamesByArticleId(articleId);
-            hotVO.setTags(tagNames);
-
             hotList.add(hotVO);
+        }
+
+        // 批量查询标签（避免 N+1 问题）
+        List<Long> allArticleIds = hotList.stream().map(HotArticleVO::getId).collect(Collectors.toList());
+        Map<Long, List<String>> tagMap = findTagNamesByArticleIds(allArticleIds);
+        for (HotArticleVO hotVO : hotList) {
+            hotVO.setTags(tagMap.getOrDefault(hotVO.getId(), new ArrayList<>()));
         }
 
         return hotList;
@@ -870,6 +923,24 @@ public class ArticleServiceImpl implements ArticleService {
     private List<String> findTagNamesByArticleId(Long articleId) {
         List<Tag> tags = tagMapper.findByArticleId(articleId);
         return tags.stream().map(Tag::getName).collect(Collectors.toList());
+    }
+
+    /**
+     * 批量查询文章标签（替代循环查询，解决 N+1 问题）
+     *
+     * @param articleIds 文章ID列表
+     * @return Map<文章ID, 标签名称列表>
+     */
+    private Map<Long, List<String>> findTagNamesByArticleIds(List<Long> articleIds) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        List<ArticleTagDTO> relations = tagMapper.findRelationsByArticleIds(articleIds);
+        Map<Long, List<String>> result = new HashMap<>();
+        for (ArticleTagDTO relation : relations) {
+            result.computeIfAbsent(relation.getArticleId(), k -> new ArrayList<>()).add(relation.getTagName());
+        }
+        return result;
     }
 
     /**
