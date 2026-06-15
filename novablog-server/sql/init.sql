@@ -8,6 +8,9 @@ CREATE DATABASE IF NOT EXISTS novablog
 
 USE novablog;
 
+-- 禁用外键检查，确保 DROP TABLE 可以按任意顺序执行
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- 1. 用户表
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
@@ -82,8 +85,8 @@ CREATE TABLE `article` (
     `content` LONGTEXT NOT NULL COMMENT '正文（Markdown）',
     `summary` VARCHAR(500) DEFAULT NULL COMMENT '摘要',
     `cover` VARCHAR(500) DEFAULT NULL COMMENT '封面图URL',
-    `view_count` INT NOT NULL DEFAULT 0 COMMENT '浏览量',
-    `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
+    `view_count` BIGINT NOT NULL DEFAULT 0 COMMENT '浏览量',
+    `like_count` BIGINT NOT NULL DEFAULT 0 COMMENT '点赞数',
     `user_id` BIGINT NOT NULL COMMENT '作者ID',
     `category_id` BIGINT NOT NULL COMMENT '分类ID',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-已发布 0-草稿',
@@ -142,3 +145,6 @@ ALTER TABLE `comment`
     ADD CONSTRAINT `fk_comment_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE RESTRICT,
     ADD CONSTRAINT `fk_comment_parent` FOREIGN KEY (`parent_id`) REFERENCES `comment` (`id`) ON DELETE CASCADE,
     ADD CONSTRAINT `fk_comment_reply_to` FOREIGN KEY (`reply_to_id`) REFERENCES `user` (`id`) ON DELETE SET NULL;
+
+-- 恢复外键检查
+SET FOREIGN_KEY_CHECKS = 1;

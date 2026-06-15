@@ -1,5 +1,6 @@
 package com.novablog.task;
 
+import com.novablog.common.constant.RedisKeyConstant;
 import com.novablog.entity.Article;
 import com.novablog.mapper.ArticleMapper;
 import com.novablog.util.RedisUtil;
@@ -27,7 +28,7 @@ public class RedisInitRunner implements ApplicationRunner {
     /**
      * Redis Key 前缀：浏览量
      */
-    private static final String KEY_VIEW_PREFIX = "article:view:";
+    private static final String KEY_VIEW_PREFIX = RedisKeyConstant.ARTICLE_VIEW;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -63,7 +64,7 @@ public class RedisInitRunner implements ApplicationRunner {
         for (Article article : articles) {
             try {
                 String key = KEY_VIEW_PREFIX + article.getId();
-                Integer viewCount = article.getViewCount();
+                Long viewCount = article.getViewCount();
                 redisUtil.set(key, String.valueOf(viewCount != null ? viewCount : 0));
                 successCount++;
             } catch (Exception e) {

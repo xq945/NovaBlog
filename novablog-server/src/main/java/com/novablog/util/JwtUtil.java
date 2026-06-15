@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * JWT 工具类
@@ -44,6 +45,7 @@ public class JwtUtil {
                 .claim("username", user.getUsername())
                 .claim("role", user.getRole())
                 .claim("type", "access")
+                .claim("jti", UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(getSecretKey())
@@ -64,6 +66,7 @@ public class JwtUtil {
                 .subject(String.valueOf(userId))
                 .claim("userId", userId)
                 .claim("type", "refresh")
+                .claim("jti", UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(getSecretKey())
@@ -128,6 +131,28 @@ public class JwtUtil {
     public String getTokenType(String token) {
         Claims claims = parseToken(token);
         return claims.get("type", String.class);
+    }
+
+    /**
+     * 从 Token 中提取 jti
+     *
+     * @param token JWT 字符串
+     * @return jti
+     */
+    public String getJtiFromToken(String token) {
+        Claims claims = parseToken(token);
+        return claims.get("jti", String.class);
+    }
+
+    /**
+     * 从 Token 中提取过期时间
+     *
+     * @param token JWT 字符串
+     * @return 过期时间
+     */
+    public Date getExpirationFromToken(String token) {
+        Claims claims = parseToken(token);
+        return claims.getExpiration();
     }
 
     /**

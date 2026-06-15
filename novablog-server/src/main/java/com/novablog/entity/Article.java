@@ -39,12 +39,12 @@ public class Article {
     /**
      * 浏览量
      */
-    private Integer viewCount;
+    private Long viewCount;
 
     /**
      * 点赞数
      */
-    private Integer likeCount;
+    private Long likeCount;
 
     /**
      * 作者ID

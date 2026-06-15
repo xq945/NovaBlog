@@ -1,0 +1,47 @@
+:root {
+  /* 亮色主题（默认） */
+  --nb-bg-primary: #f5f7fa;
+  --nb-bg-secondary: #ffffff;
+  --nb-bg-card: #ffffff;
+  --nb-bg-glass: rgba(255, 255, 255, 0.9);
+  --nb-text-primary: #303133;
+  --nb-text-secondary: #606266;
+  --nb-text-muted: #909399;
+  --nb-border-color: #e4e7ed;
+  --nb-accent: #409eff;
+  --nb-accent-hover: #66b1ff;
+  --nb-danger: #f56c6c;
+  --nb-success: #67c23a;
+  --nb-warning: #e6a23c;
+}
+
+[data-theme="dark"] {
+  /* 暗色主题 */
+  --nb-bg-primary: #0f172a;
+  --nb-bg-secondary: #1e293b;
+  --nb-bg-card: rgba(255, 255, 255, 0.05);
+  --nb-bg-glass: rgba(15, 23, 42, 0.85);
+  --nb-text-primary: #ffffff;
+  --nb-text-secondary: rgba(255, 255, 255, 0.85);
+  --nb-text-muted: rgba(255, 255, 255, 0.5);
+  --nb-border-color: rgba(255, 255, 255, 0.1);
+  --nb-accent: #409eff;
+  --nb-accent-hover: #66b1ff;
+  --nb-danger: #f56c6c;
+  --nb-success: #67c23a;
+  --nb-warning: #e6a23c;
+}
+
+/* 全局基础样式 */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--nb-bg-primary);
+  color: var(--nb-text-primary);
+}
+
+#app {
+  min-height: 100vh;
+  background-color: var(--nb-bg-primary);
+}

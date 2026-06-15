@@ -5,6 +5,7 @@ import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.UserDTO;
 import com.novablog.entity.User;
 import com.novablog.mapper.UserMapper;
+import com.novablog.service.TokenBlacklistService;
 import com.novablog.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,10 +32,11 @@ public class AuthController {
 
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
+    private final TokenBlacklistService tokenBlacklistService;
 
     /**
      * 使用 Refresh Token 换取新的 Access Token
-     * 同时换发新的 Refresh Token（Token 旋转机制）
+     * 同时换发新的 Refresh Token（Token 旋转机制），旧 Refresh Token 加入黑名单
      *
      * @param request HTTP 请求（包含 Authorization 头）
      * @return 新的 token、refreshToken、expiresIn、userInfo
@@ -58,6 +61,12 @@ public class AuthController {
                 throw new BusinessException(401, "Token 类型错误");
             }
 
+            // 校验 Token 是否在黑名单中
+            String jti = jwtUtil.getJtiFromToken(token);
+            if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
+                throw new BusinessException(401, "登录已过期，请重新登录");
+            }
+
             // 3. 提取用户ID，从数据库查询完整用户信息
             Long userId = claims.get("userId", Long.class);
             User user = userMapper.findById(userId);
@@ -74,7 +83,11 @@ public class AuthController {
             String newAccessToken = jwtUtil.generateAccessToken(userDTO);
             String newRefreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-            // 5. 组装用户信息
+            // 5. 将旧的 Refresh Token 加入黑名单
+            Date expiration = jwtUtil.getExpirationFromToken(token);
+            tokenBlacklistService.addToBlacklist(jti, expiration);
+
+            // 6. 组装用户信息
             Map<String, Object> userInfo = new HashMap<>();
             userInfo.put("id", user.getId());
             userInfo.put("username", user.getUsername());
@@ -83,7 +96,7 @@ public class AuthController {
             userInfo.put("email", user.getEmail());
             userInfo.put("role", user.getRole());
 
-            // 6. 返回新的 Token 和用户信息
+            // 7. 返回新的 Token 和用户信息
             Map<String, Object> result = new HashMap<>();
             result.put("token", newAccessToken);
             result.put("refreshToken", newRefreshToken);

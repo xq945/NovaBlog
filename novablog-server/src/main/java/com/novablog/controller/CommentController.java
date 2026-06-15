@@ -2,8 +2,7 @@ package com.novablog.controller;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
-import com.novablog.common.UserContext;
-import com.novablog.common.exception.BusinessException;
+import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.dto.CommentDTO;
 import com.novablog.service.CommentService;
 import com.novablog.vo.AdminCommentVO;
@@ -71,18 +70,12 @@ public class CommentController {
      * @return 分页结果
      */
     @GetMapping("/admin/list")
+    @RequireAdmin
     public Result<PageResult<AdminCommentVO>> adminList(
             @RequestParam(required = false) Long articleId,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "10") Integer size) {
-        checkAdmin();
         PageResult<AdminCommentVO> result = commentService.findAdminList(articleId, page, size);
         return Result.success(result);
-    }
-
-    private void checkAdmin() {
-        if (!"ADMIN".equals(UserContext.getRole())) {
-            throw new BusinessException(403, "无权访问");
-        }
     }
 }

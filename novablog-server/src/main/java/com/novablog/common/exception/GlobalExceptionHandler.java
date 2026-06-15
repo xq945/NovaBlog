@@ -24,11 +24,10 @@ public class GlobalExceptionHandler {
 
     /**
      * 处理文件大小超过限制异常
-     * Spring Boot multipart 配置中的 max-file-size 触发
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public Result<Void> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
-        return Result.error(400, "文件大小不能超过5MB");
+        return Result.error(ErrorCode.FILE_TOO_LARGE.getCode(), ErrorCode.FILE_TOO_LARGE.getDefaultMessage());
     }
 
     /**
@@ -37,6 +36,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
         log.error("系统异常：", e);
-        return Result.error("系统繁忙，请稍后重试");
+        return Result.error(ErrorCode.INTERNAL_ERROR.getCode(), ErrorCode.INTERNAL_ERROR.getDefaultMessage());
     }
 }

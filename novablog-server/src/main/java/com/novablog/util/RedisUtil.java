@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Redis 工具类
@@ -19,6 +20,15 @@ import java.util.Set;
 public class RedisUtil {
 
     private final StringRedisTemplate redisTemplate;
+
+    /**
+     * 获取底层 RedisTemplate，用于需要直接操作的高级场景
+     *
+     * @return StringRedisTemplate 实例
+     */
+    public StringRedisTemplate getRedisTemplate() {
+        return redisTemplate;
+    }
 
     // ========== String 操作 ==========
 
@@ -60,6 +70,28 @@ public class RedisUtil {
      */
     public Boolean del(String key) {
         return redisTemplate.delete(key);
+    }
+
+    /**
+     * 设置 String 值并指定过期时间
+     *
+     * @param key     键
+     * @param value   值
+     * @param timeout 过期时间
+     * @param unit    时间单位
+     */
+    public void setWithExpire(String key, String value, long timeout, TimeUnit unit) {
+        redisTemplate.opsForValue().set(key, value, timeout, unit);
+    }
+
+    /**
+     * 判断 key 是否存在
+     *
+     * @param key 键
+     * @return true-存在
+     */
+    public Boolean hasKey(String key) {
+        return redisTemplate.hasKey(key);
     }
 
     // ========== Set 操作 ==========

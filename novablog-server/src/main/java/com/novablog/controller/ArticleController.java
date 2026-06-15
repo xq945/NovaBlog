@@ -2,8 +2,7 @@ package com.novablog.controller;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
-import com.novablog.common.UserContext;
-import com.novablog.common.exception.BusinessException;
+import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.dto.ArticleDTO;
 import com.novablog.service.ArticleService;
 import com.novablog.vo.ArticleDetailVO;
@@ -150,18 +149,12 @@ public class ArticleController {
      * @return 文章分页结果
      */
     @GetMapping("/admin/list")
+    @RequireAdmin
     public Result<PageResult<ArticleVO>> adminList(
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "10") Integer size,
             @RequestParam(required = false) String keyword) {
-        checkAdmin();
         PageResult<ArticleVO> result = articleService.findAdminList(page, size, keyword);
         return Result.success(result);
-    }
-
-    private void checkAdmin() {
-        if (!"ADMIN".equals(UserContext.getRole())) {
-            throw new BusinessException(403, "无权访问");
-        }
     }
 }

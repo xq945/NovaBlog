@@ -1,6 +1,7 @@
 package com.novablog.service.impl;
 
 import com.novablog.common.UserContext;
+import com.novablog.common.constant.RoleConstant;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.LoginDTO;
 import com.novablog.dto.RegisterDTO;
@@ -71,7 +72,7 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(password));
         user.setNickname(nickname);
         user.setAvatar("https://xq945.oss-cn-beijing.aliyuncs.com/NovaBlog/first-avatar.jpg");  // 默认头像
-        user.setRole("USER");   // 注册时固定为普通用户，禁止注册为管理员
+        user.setRole(RoleConstant.USER);   // 注册时固定为普通用户，禁止注册为管理员
         user.setStatus(1);      // 默认启用状态
 
         userMapper.insert(user);

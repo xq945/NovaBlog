@@ -116,6 +116,15 @@ public interface ArticleMapper {
     int updateViewCount(@Param("id") Long id, @Param("viewCount") Long viewCount);
 
     /**
+     * 更新点赞数（定时任务同步用）
+     *
+     * @param id        文章ID
+     * @param likeCount 点赞数
+     * @return 影响行数
+     */
+    int updateLikeCount(@Param("id") Long id, @Param("likeCount") Long likeCount);
+
+    /**
      * 批量更新浏览量（定时任务同步用，效率高于逐条更新）
      *
      * @param articleIdList  文章ID列表
@@ -124,6 +133,16 @@ public interface ArticleMapper {
      */
     int batchUpdateViewCount(@Param("articleIdList") List<Long> articleIdList,
                               @Param("viewCountList") List<Long> viewCountList);
+
+    /**
+     * 批量更新点赞数（定时任务同步用）
+     *
+     * @param articleIdList  文章ID列表
+     * @param likeCountList  对应点赞数列表
+     * @return 影响行数
+     */
+    int batchUpdateLikeCount(@Param("articleIdList") List<Long> articleIdList,
+                              @Param("likeCountList") List<Long> likeCountList);
 
     /**
      * 查询所有已发布文章（Redis初始化用）

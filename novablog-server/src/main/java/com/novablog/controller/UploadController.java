@@ -1,7 +1,6 @@
 package com.novablog.controller;
 
 import com.aliyun.oss.OSS;
-import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.ObjectMetadata;
 import com.novablog.common.Result;
 import com.novablog.config.OssProperties;
@@ -30,6 +29,8 @@ import java.util.UUID;
 public class UploadController {
 
     private final OssProperties ossProperties;
+
+    private final OSS ossClient;
 
     /**
      * 允许上传的MIME类型白名单
@@ -91,14 +92,7 @@ public class UploadController {
         String objectKey = "NovaBlog/" + dateDir + "/" + newFilename;
 
         // 6. 上传到OSS
-        OSS ossClient = null;
         try {
-            ossClient = new OSSClientBuilder().build(
-                    ossProperties.getEndpoint(),
-                    ossProperties.getAccessKeyId(),
-                    ossProperties.getAccessKeySecret()
-            );
-
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentType(contentType);
             metadata.setContentLength(file.getSize());
@@ -122,10 +116,6 @@ public class UploadController {
         } catch (Exception e) {
             log.error("OSS上传失败", e);
             return Result.error(500, "文件上传失败，请稍后重试");
-        } finally {
-            if (ossClient != null) {
-                ossClient.shutdown();
-            }
         }
     }
 

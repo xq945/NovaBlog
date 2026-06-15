@@ -86,6 +86,12 @@ cd novablog-server
 mysql -u root -p < sql/init.sql
 ```
 
+如果需要体验带有模拟数据的完整效果，可继续导入种子数据：
+
+```bash
+mysql -u root -p novablog < sql/seed_data.sql
+```
+
 ### 3. 启动后端
 
 ```bash
@@ -117,6 +123,38 @@ npm run dev
 - **个人中心**：信息修改、头像上传、我的文章
 - **后台管理**：用户/文章/评论/分类/标签管理
 - **文件上传**：头像、文章封面
+
+## 项目展示
+
+### 首页
+
+暗色主题下的文章列表，支持分类筛选、关键词搜索和热门文章侧边栏。
+
+![首页](docs/screenshots/home.png)
+
+### 文章详情
+
+Markdown 渲染正文、点赞按钮与嵌套评论系统。
+
+![文章详情](docs/screenshots/article-detail.png)
+
+### 文章编辑器
+
+基于 md-editor-v3 的 Markdown 编辑器，支持封面上传、分类与标签选择。
+
+![文章编辑器](docs/screenshots/article-editor.png)
+
+### 个人中心
+
+展示与编辑用户资料、头像上传以及"我的文章"管理列表。
+
+![个人中心](docs/screenshots/profile.png)
+
+### 后台管理
+
+管理员可对用户、文章、评论、分类和标签进行统一管理。
+
+![后台管理](docs/screenshots/admin.png)
 
 ## API 概览
 

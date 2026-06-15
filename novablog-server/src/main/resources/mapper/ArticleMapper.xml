@@ -182,12 +182,31 @@
         UPDATE article SET view_count = #{viewCount} WHERE id = #{id}
     </update>
 
+    <!-- 更新点赞数（定时任务同步用） -->
+    <update id="updateLikeCount">
+        UPDATE article SET like_count = #{likeCount} WHERE id = #{id}
+    </update>
+
     <!-- 批量更新浏览量（定时任务同步用，CASE WHEN 批量更新效率更高） -->
     <update id="batchUpdateViewCount">
         UPDATE article
         SET view_count = CASE id
         <foreach collection="articleIdList" item="articleId" index="index">
             WHEN #{articleId} THEN #{viewCountList[${index}]}
+        </foreach>
+        END
+        WHERE id IN
+        <foreach collection="articleIdList" item="articleId" open="(" separator="," close=")">
+            #{articleId}
+        </foreach>
+    </update>
+
+    <!-- 批量更新点赞数（定时任务同步用，CASE WHEN 批量更新效率更高） -->
+    <update id="batchUpdateLikeCount">
+        UPDATE article
+        SET like_count = CASE id
+        <foreach collection="articleIdList" item="articleId" index="index">
+            WHEN #{articleId} THEN #{likeCountList[${index}]}
         </foreach>
         END
         WHERE id IN

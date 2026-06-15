@@ -1,7 +1,7 @@
 package com.novablog.controller;
 
 import com.novablog.common.Result;
-import com.novablog.common.UserContext;
+import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.CategoryDTO;
 import com.novablog.entity.Category;
@@ -38,8 +38,8 @@ public class CategoryController {
      * @return 分类ID
      */
     @PostMapping
+    @RequireAdmin
     public Result<Long> create(@RequestBody CategoryDTO dto) {
-        checkAdmin();
         if (dto.getName() == null || dto.getName().isEmpty() || dto.getName().length() > 20) {
             throw new BusinessException("分类名称长度必须为1-20位");
         }
@@ -54,8 +54,8 @@ public class CategoryController {
      * @return 成功结果
      */
     @PutMapping
+    @RequireAdmin
     public Result<Void> update(@RequestBody CategoryDTO dto) {
-        checkAdmin();
         if (dto.getId() == null) {
             throw new BusinessException("分类ID不能为空");
         }
@@ -73,15 +73,9 @@ public class CategoryController {
      * @return 成功结果
      */
     @DeleteMapping("/{id}")
+    @RequireAdmin
     public Result<Void> delete(@PathVariable Long id) {
-        checkAdmin();
         categoryService.delete(id);
         return Result.success();
-    }
-
-    private void checkAdmin() {
-        if (!"ADMIN".equals(UserContext.getRole())) {
-            throw new BusinessException(403, "无权访问");
-        }
     }
 }

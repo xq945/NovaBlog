@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useUserStore } from '../stores'
-import { ElMessage } from 'element-plus'
+import { handleApiError } from './errorHandler'
 
 // 支持通过环境变量切换 API 地址，用于内网穿透等场景
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -120,6 +120,8 @@ request.interceptors.response.use(
       }
     }
 
+    // 其他错误统一处理
+    handleApiError(error, { silent: true })
     return Promise.reject(error)
   }
 )

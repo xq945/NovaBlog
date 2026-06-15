@@ -3,6 +3,7 @@ package com.novablog.controller;
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
 import com.novablog.common.UserContext;
+import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.LoginDTO;
 import com.novablog.dto.RegisterDTO;
@@ -12,6 +13,7 @@ import com.novablog.entity.User;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.ArticleService;
 import com.novablog.service.UserService;
+import com.novablog.service.assembler.UserVOAssembler;
 import com.novablog.vo.AdminUserVO;
 import com.novablog.vo.ArticleVO;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +25,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 用户控制器
@@ -134,10 +136,10 @@ public class UserController {
      * @return 用户分页结果
      */
     @GetMapping("/admin/list")
+    @RequireAdmin
     public Result<PageResult<AdminUserVO>> adminList(
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "10") Integer size) {
-        checkAdmin();
         if (page == null || page < 1) page = 1;
         if (size == null || size < 1) size = 10;
         if (size > 50) size = 50;
@@ -146,21 +148,7 @@ public class UserController {
         List<User> users = userMapper.findList(offset, size);
         Long total = userMapper.countAll();
 
-        List<AdminUserVO> voList = new ArrayList<>();
-        for (User user : users) {
-            AdminUserVO vo = new AdminUserVO();
-            vo.setId(user.getId());
-            vo.setUsername(user.getUsername());
-            vo.setNickname(user.getNickname());
-            vo.setAvatar(user.getAvatar());
-            vo.setEmail(user.getEmail());
-            vo.setRole(user.getRole());
-            vo.setStatus(user.getStatus());
-            vo.setCreateTime(user.getCreateTime());
-            voList.add(vo);
-        }
-
-        return Result.success(new PageResult<>(total, voList));
+        return Result.success(new PageResult<>(total, UserVOAssembler.toAdminUserVOList(users)));
     }
 
     /**
@@ -170,12 +158,12 @@ public class UserController {
      * @return 成功结果
      */
     @PutMapping("/admin/status")
+    @RequireAdmin
     public Result<Void> updateStatus(@RequestBody UserStatusDTO dto) {
-        checkAdmin();
         if (dto.getStatus() == null || (dto.getStatus() != 0 && dto.getStatus() != 1)) {
             throw new BusinessException("状态值只能为 0 或 1");
         }
-        if (dto.getUserId().equals(UserContext.getUserId())) {
+        if (Objects.equals(dto.getUserId(), UserContext.getUserId())) {
             throw new BusinessException("不能禁用当前登录用户");
         }
         User user = userMapper.findById(dto.getUserId());
@@ -184,14 +172,5 @@ public class UserController {
         }
         userMapper.updateStatus(dto.getUserId(), dto.getStatus());
         return Result.success();
-    }
-
-    /**
-     * 检查当前用户是否为管理员
-     */
-    private void checkAdmin() {
-        if (!"ADMIN".equals(UserContext.getRole())) {
-            throw new BusinessException(403, "无权访问");
-        }
     }
 }

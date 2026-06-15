@@ -1,0 +1,56 @@
+/* Element Plus 主题变量覆盖 */
+
+/* 表格 */
+.el-table {
+  --el-table-bg-color: var(--nb-bg-card);
+  --el-table-header-bg-color: var(--nb-bg-secondary);
+  --el-table-row-hover-bg-color: var(--nb-bg-secondary);
+  --el-table-text-color: var(--nb-text-secondary);
+  --el-table-header-text-color: var(--nb-text-primary);
+  --el-table-border-color: var(--nb-border-color);
+}
+
+/* 输入框 */
+.el-input__wrapper {
+  background-color: var(--nb-bg-card);
+}
+
+.el-input__inner {
+  color: var(--nb-text-primary);
+}
+
+/* 按钮（text 类型） */
+.el-button.is-text {
+  color: var(--nb-text-secondary);
+}
+
+.el-button.is-text:hover {
+  color: var(--nb-accent);
+}
+
+/* 分页 */
+.el-pagination {
+  --el-pagination-bg-color: var(--nb-bg-card);
+  --el-pagination-hover-color: var(--nb-accent);
+  color: var(--nb-text-secondary);
+}
+
+/* 标签页 */
+.el-tabs--border-card {
+  background-color: var(--nb-bg-card);
+  border-color: var(--nb-border-color);
+}
+
+.el-tabs--border-card > .el-tabs__header {
+  background-color: var(--nb-bg-secondary);
+  border-bottom-color: var(--nb-border-color);
+}
+
+.el-tabs--border-card > .el-tabs__header .el-tabs__item {
+  color: var(--nb-text-secondary);
+}
+
+.el-tabs--border-card > .el-tabs__header .el-tabs__item.is-active {
+  color: var(--nb-accent);
+  background-color: var(--nb-bg-card);
+}

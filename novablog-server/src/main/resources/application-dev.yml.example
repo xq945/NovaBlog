@@ -1,18 +1,40 @@
+# 开发环境配置示例
+# 复制本文件为 application-dev.yml 后填入真实值，application-dev.yml 不提交仓库
+# 也可以通过环境变量注入，环境变量名与占位符一致
+
 spring:
   datasource:
-    password: YOUR_MYSQL_PASSWORD
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/novablog?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
   data:
     redis:
-      password: YOUR_REDIS_PASSWORD
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
 
-# JWT 密钥：高强度，包含大小写+数字+特殊符号，长度 >= 64 位
+# JWT 密钥：长度必须 >= 32 位，建议 >= 64 位，包含大小写字母、数字和特殊字符
 jwt:
-  secret: YOUR_JWT_SECRET_HERE_64_CHARS_MIN_WITH_UPPER_LOWER_NUMBER_SPECIAL
+  secret: ${NOVABLOG_JWT_SECRET:}
+  expiration: ${NOVABLOG_JWT_EXPIRATION:7200000}
+  refresh-expiration: ${NOVABLOG_JWT_REFRESH_EXPIRATION:604800000}
 
-# 阿里云OSS配置
+# MyBatis 开发环境输出 SQL 日志
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 日志配置
+logging:
+  level:
+    com.novablog.mapper: debug
+
+# 阿里云 OSS 配置
 aliyun:
   oss:
-    endpoint: oss-cn-beijing.aliyuncs.com
-    bucket: YOUR_BUCKET_NAME
-    access-key-id: YOUR_ACCESS_KEY_ID
-    access-key-secret: YOUR_ACCESS_KEY_SECRET
+    endpoint: ${ALIYUN_OSS_ENDPOINT:}
+    bucket: ${ALIYUN_OSS_BUCKET:}
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}

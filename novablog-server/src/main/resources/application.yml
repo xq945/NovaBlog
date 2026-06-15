@@ -61,7 +61,7 @@ mybatis:
   type-aliases-package: com.novablog.entity      # 实体类别名包
   configuration:
     map-underscore-to-camel-case: true           # 下划线自动转驼峰（关键！）
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 打印 SQL 日志
+    # log-impl 在 application-dev.yml 中配置，开发环境输出 SQL，生产环境关闭
 
 # 6. JWT 登录认证配置
 jwt:

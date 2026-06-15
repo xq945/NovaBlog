@@ -2,6 +2,7 @@ package com.novablog.service.impl;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.UserContext;
+import com.novablog.common.constant.RoleConstant;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.CommentDTO;
 import com.novablog.entity.Article;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -231,7 +233,7 @@ public class CommentServiceImpl implements CommentService {
         // 2. 权限校验
         Long currentUserId = UserContext.getUserId();
         String currentRole = UserContext.getRole();
-        if (!comment.getUserId().equals(currentUserId) && !"ADMIN".equals(currentRole)) {
+        if (!Objects.equals(comment.getUserId(), currentUserId) && !RoleConstant.ADMIN.equals(currentRole)) {
             throw new BusinessException(403, "无权删除该评论");
         }
 

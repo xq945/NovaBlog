@@ -42,13 +42,6 @@ public class JwtInterceptor implements HandlerInterceptor {
                     String token = authHeader.substring(7);
                     UserDTO user = jwtUtil.getUserFromToken(token);
                     UserContext.set(user);
-
-                    // 实时校验用户状态
-                    User dbUser = userMapper.findById(user.getId());
-                    if (dbUser == null || dbUser.getStatus() == 0) {
-                        writeErrorResponse(response, 401, "用户不存在或已被禁用");
-                        return false;
-                    }
                 } catch (Exception e) {
                     // Token 无效或过期，忽略，作为未登录用户处理
                 }
