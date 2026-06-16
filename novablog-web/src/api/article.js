@@ -34,6 +34,18 @@ export function importArticle(file) {
 }
 
 /**
+ * AI 自动生成摘要
+ * @param {string} content - 文章正文
+ */
+export function generateSummary(content) {
+  return request({
+    url: '/article/summary',
+    method: 'post',
+    data: { content }
+  })
+}
+
+/**
  * 查询文章详情
  * @param {number} id - 文章ID
  */

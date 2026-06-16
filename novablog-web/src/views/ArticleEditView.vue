@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
-import { publishArticle, updateArticle, getArticleDetail, importArticle } from '../api/article'
+import { publishArticle, updateArticle, getArticleDetail, importArticle, generateSummary } from '../api/article'
 import { getCategoryList } from '../api/category'
 import { getTagList } from '../api/tag'
 import { uploadFile } from '../api/upload'
@@ -17,6 +17,7 @@ const articleId = ref(null)
 const loading = ref(false)
 const coverLoading = ref(false)
 const importLoading = ref(false)
+const summaryLoading = ref(false)
 const categories = ref([])
 const tags = ref([])
 const importFileRef = ref(null)
@@ -256,6 +257,44 @@ const handleImportFile = async (options) => {
 }
 
 /**
+ * AI 生成摘要
+ */
+const handleGenerateSummary = async () => {
+  if (!form.content || form.content.trim().length < 100) {
+    ElMessage.warning('正文内容过少，无法生成摘要')
+    return
+  }
+
+  // 如果已有摘要，先确认是否覆盖
+  if (form.summary && form.summary.trim()) {
+    try {
+      await ElMessageBox.confirm('已存在摘要，是否覆盖？', '确认覆盖', {
+        confirmButtonText: '覆盖',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+    } catch {
+      return
+    }
+  }
+
+  summaryLoading.value = true
+  try {
+    const res = await generateSummary(form.content)
+    if (res.code === 200) {
+      form.summary = res.data.summary || ''
+      ElMessage.success('摘要已生成')
+    } else {
+      ElMessage.error(res.message || '摘要生成失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '摘要生成失败')
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
+/**
  * MdEditor 图片上传回调
  */
 const onUploadImg = async (files, callback) => {
@@ -407,14 +446,25 @@ onMounted(() => {
         </el-form-item>
 
         <el-form-item label="摘要（可选，留空则自动从正文生成）">
-          <el-input
-            v-model="form.summary"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入文章摘要"
-            maxlength="500"
-            show-word-limit
-          />
+          <div class="summary-row">
+            <el-input
+              v-model="form.summary"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入文章摘要"
+              maxlength="500"
+              show-word-limit
+              class="summary-input"
+            />
+            <el-button
+              type="primary"
+              :loading="summaryLoading"
+              class="summary-btn"
+              @click="handleGenerateSummary"
+            >
+              <el-icon><MagicStick /></el-icon> AI 生成
+            </el-button>
+          </div>
         </el-form-item>
 
         <el-form-item label="正文" prop="content" class="content-editor">
@@ -502,6 +552,21 @@ onMounted(() => {
 .edit-form :deep(.el-form-item__label) {
   font-weight: 500;
   color: #606266;
+}
+
+.summary-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.summary-input {
+  flex: 1;
+}
+
+.summary-btn {
+  height: 54px;
+  white-space: nowrap;
 }
 
 .content-editor :deep(.md-editor) {

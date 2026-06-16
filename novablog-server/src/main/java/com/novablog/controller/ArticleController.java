@@ -5,12 +5,16 @@ import com.novablog.common.Result;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.dto.ArticleDTO;
 import com.novablog.dto.ArticleImportResult;
+import com.novablog.dto.SummaryRequest;
+import com.novablog.service.AiSummaryService;
 import com.novablog.service.ArticleImportService;
 import com.novablog.service.ArticleService;
 import com.novablog.vo.ArticleDetailVO;
 import com.novablog.vo.ArticleVO;
 import com.novablog.vo.HotArticleVO;
 import com.novablog.vo.LikeStatusVO;
+import com.novablog.vo.SummaryVO;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +32,7 @@ public class ArticleController {
 
     private final ArticleService articleService;
     private final ArticleImportService articleImportService;
+    private final AiSummaryService aiSummaryService;
 
     /**
      * 发布文章
@@ -51,6 +56,18 @@ public class ArticleController {
     public Result<ArticleImportResult> importFile(@RequestParam("file") MultipartFile file) {
         ArticleImportResult result = articleImportService.importFile(file);
         return Result.success(result);
+    }
+
+    /**
+     * AI 自动生成文章摘要
+     *
+     * @param request 摘要请求
+     * @return 生成的摘要
+     */
+    @PostMapping("/summary")
+    public Result<SummaryVO> generateSummary(@Valid @RequestBody SummaryRequest request) {
+        String summary = aiSummaryService.generateSummary(request.getContent());
+        return Result.success(new SummaryVO(summary));
     }
 
     /**
