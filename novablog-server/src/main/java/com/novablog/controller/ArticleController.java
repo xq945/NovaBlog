@@ -4,13 +4,17 @@ import com.novablog.common.PageResult;
 import com.novablog.common.Result;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.dto.ArticleDTO;
+import com.novablog.dto.ArticleImportResult;
+import com.novablog.service.ArticleImportService;
 import com.novablog.service.ArticleService;
 import com.novablog.vo.ArticleDetailVO;
 import com.novablog.vo.ArticleVO;
 import com.novablog.vo.HotArticleVO;
 import com.novablog.vo.LikeStatusVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -23,6 +27,7 @@ import java.util.List;
 public class ArticleController {
 
     private final ArticleService articleService;
+    private final ArticleImportService articleImportService;
 
     /**
      * 发布文章
@@ -34,6 +39,18 @@ public class ArticleController {
     public Result<Long> publish(@RequestBody ArticleDTO articleDTO) {
         Long articleId = articleService.publish(articleDTO);
         return Result.success(articleId);
+    }
+
+    /**
+     * 导入文件生成文章草稿数据
+     *
+     * @param file 上传的文件（.md / .txt / .docx / .pdf）
+     * @return 解析后的标题、正文、摘要
+     */
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<ArticleImportResult> importFile(@RequestParam("file") MultipartFile file) {
+        ArticleImportResult result = articleImportService.importFile(file);
+        return Result.success(result);
     }
 
     /**

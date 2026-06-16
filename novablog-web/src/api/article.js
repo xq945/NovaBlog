@@ -17,6 +17,23 @@ export function getArticleList(params) {
 }
 
 /**
+ * 导入文件生成文章草稿数据
+ * @param {File} file - 上传的文件
+ */
+export function importArticle(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/article/import',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+/**
  * 查询文章详情
  * @param {number} id - 文章ID
  */

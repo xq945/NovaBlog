@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
-import { publishArticle, updateArticle, getArticleDetail } from '../api/article'
+import { publishArticle, updateArticle, getArticleDetail, importArticle } from '../api/article'
 import { getCategoryList } from '../api/category'
 import { getTagList } from '../api/tag'
 import { uploadFile } from '../api/upload'
@@ -16,8 +16,10 @@ const isEdit = ref(false)
 const articleId = ref(null)
 const loading = ref(false)
 const coverLoading = ref(false)
+const importLoading = ref(false)
 const categories = ref([])
 const tags = ref([])
+const importFileRef = ref(null)
 
 const form = reactive({
   title: '',
@@ -199,6 +201,61 @@ const removeCover = () => {
 }
 
 /**
+ * 导入文件前的校验
+ */
+const beforeImportUpload = (file) => {
+  const validExtensions = ['.md', '.txt', '.docx', '.pdf']
+  const name = file.name.toLowerCase()
+  const isValid = validExtensions.some(ext => name.endsWith(ext))
+  if (!isValid) {
+    ElMessage.error('仅支持 .md、.txt、.docx、.pdf 格式文件')
+    return false
+  }
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isLt10M) {
+    ElMessage.error('文件大小不能超过 10MB')
+    return false
+  }
+  return true
+}
+
+/**
+ * 导入文件并填充表单
+ */
+const handleImportFile = async (options) => {
+  importLoading.value = true
+  try {
+    const res = await importArticle(options.file)
+    if (res.code === 200) {
+      const data = res.data
+      form.title = data.title || ''
+      form.content = data.content || ''
+      form.summary = data.summary || ''
+      // 导入视为新文章，退出编辑模式
+      isEdit.value = false
+      articleId.value = null
+      // 清除路由中的 id 参数，避免刷新后进入编辑模式
+      if (route.params.id) {
+        router.replace('/article/edit')
+      }
+      ElMessage.success('文件导入成功，请检查内容并完善分类、标签和图片后发布')
+    } else {
+      ElMessage.error(res.message || '导入失败')
+      options.onError()
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '导入失败')
+    options.onError()
+  } finally {
+    importLoading.value = false
+    // 清空选择，允许重复导入同一文件
+    if (importFileRef.value) {
+      importFileRef.value.clearFiles()
+    }
+  }
+}
+
+/**
  * MdEditor 图片上传回调
  */
 const onUploadImg = async (files, callback) => {
@@ -245,6 +302,19 @@ onMounted(() => {
         <span class="nav-link" @click="router.push('/chat')">
           <el-icon><ChatDotRound /></el-icon> 问答
         </span>
+        <el-upload
+          ref="importFileRef"
+          class="import-upload"
+          :http-request="handleImportFile"
+          :before-upload="beforeImportUpload"
+          accept=".md,.txt,.docx,.pdf"
+          :show-file-list="false"
+          :disabled="importLoading"
+        >
+          <el-button :loading="importLoading" type="success">
+            <el-icon><Upload /></el-icon> 导入文件
+          </el-button>
+        </el-upload>
         <el-button @click="goBack">取消</el-button>
         <el-button type="info" @click="handleSaveDraft" :loading="loading">
           保存草稿
@@ -415,6 +485,11 @@ onMounted(() => {
 .nav-actions {
   display: flex;
   gap: 12px;
+  align-items: center;
+}
+
+.import-upload :deep(.el-upload) {
+  display: inline-block;
 }
 
 /* 内容区域 */
