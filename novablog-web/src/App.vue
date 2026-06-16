@@ -11,6 +11,9 @@ const userStore = useUserStore()
  * userInfo 由有效 token 换取，避免 token 过期后仍显示登录状态
  */
 onMounted(async () => {
+  // 全局使用暗色主题
+  document.documentElement.classList.add('dark')
+
   const token = localStorage.getItem('token')
   const refreshToken = localStorage.getItem('refreshToken')
 

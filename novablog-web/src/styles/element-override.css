@@ -4,7 +4,7 @@
 
 .login-page .el-input__wrapper,
 .register-page .el-input__wrapper {
-  background-color: #000 !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
 }
 
@@ -25,7 +25,7 @@
 
 .login-page .el-input__inner::placeholder,
 .register-page .el-input__inner::placeholder {
-  color: rgba(255, 255, 255, 0.35) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 /* 个人资料页输入框字符计数器 — 深色主题下去除白色背景 */

@@ -1,22 +1,5 @@
 :root {
-  /* 亮色主题（默认） */
-  --nb-bg-primary: #f5f7fa;
-  --nb-bg-secondary: #ffffff;
-  --nb-bg-card: #ffffff;
-  --nb-bg-glass: rgba(255, 255, 255, 0.9);
-  --nb-text-primary: #303133;
-  --nb-text-secondary: #606266;
-  --nb-text-muted: #909399;
-  --nb-border-color: #e4e7ed;
-  --nb-accent: #409eff;
-  --nb-accent-hover: #66b1ff;
-  --nb-danger: #f56c6c;
-  --nb-success: #67c23a;
-  --nb-warning: #e6a23c;
-}
-
-[data-theme="dark"] {
-  /* 暗色主题 */
+  /* 暗色主题（项目默认） */
   --nb-bg-primary: #0f172a;
   --nb-bg-secondary: #1e293b;
   --nb-bg-card: rgba(255, 255, 255, 0.05);

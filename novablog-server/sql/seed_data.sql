@@ -4,27 +4,6 @@
 
 USE novablog;
 
--- 清理已有模拟数据（保留管理员 id=1，清空文章/评论/标签关联/普通用户/分类/标签）
-DELETE FROM article_tag;
-DELETE FROM comment;
-DELETE FROM article;
-DELETE FROM chat_message;
-DELETE FROM chat_session;
-DELETE FROM article_chunk;
-DELETE FROM user WHERE id > 1;
-DELETE FROM category;
-DELETE FROM tag;
-
--- 重置自增（管理员从 2 开始，文章/评论从 2 开始）
-ALTER TABLE user AUTO_INCREMENT = 2;
-ALTER TABLE article AUTO_INCREMENT = 2;
-ALTER TABLE comment AUTO_INCREMENT = 2;
-ALTER TABLE category AUTO_INCREMENT = 1;
-ALTER TABLE tag AUTO_INCREMENT = 1;
-ALTER TABLE chat_session AUTO_INCREMENT = 1;
-ALTER TABLE chat_message AUTO_INCREMENT = 1;
-ALTER TABLE article_chunk AUTO_INCREMENT = 1;
-
 -- ============================================
 -- 1. 分类数据（仅面经）
 -- ============================================
