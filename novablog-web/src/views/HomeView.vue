@@ -158,6 +158,12 @@ onUnmounted(() => {
     <nav class="navbar">
       <div class="nav-brand" @click="router.push('/')">NovaBlog</div>
       <div class="nav-links">
+        <span class="nav-link active" @click="router.push('/')">
+          <el-icon><HomeFilled /></el-icon> 首页
+        </span>
+        <span class="nav-link" @click="router.push('/chat')">
+          <el-icon><ChatDotRound /></el-icon> 问答
+        </span>
         <template v-if="userStore.userInfo">
           <span v-if="userStore.userInfo.role === 'ADMIN'" class="nav-link" @click="router.push('/admin')">
             <el-icon><Setting /></el-icon> 后台管理

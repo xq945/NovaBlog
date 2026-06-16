@@ -59,3 +59,5 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn
   }
 })
+
+export { useChatStore } from './chat'

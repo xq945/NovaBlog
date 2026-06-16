@@ -1,6 +1,11 @@
 # 1. 服务端口
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 # 2. Spring 核心配置
 spring:
@@ -81,3 +86,51 @@ aliyun:
     bucket: ${ALIYUN_OSS_BUCKET}              # Bucket名称
     access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}      # RAM用户AccessKey ID
     access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}  # RAM用户AccessKey Secret
+
+# 9. AI/RAG 配置（基于 Spring AI 框架）
+# 对话模型和嵌入模型由 AiModelConfig 根据 ai.chat.provider / ai.embedding.provider 动态装配
+# 支持：deepseek（OpenAI 兼容）、openai、bailian（阿里云百炼/通义）
+# 注意：DeepSeek 目前仅支持 /chat/completions，不支持 /embeddings
+# 若使用 DeepSeek 作为对话模型，建议将 embedding.provider 配置为 openai 或 bailian 并提供对应 API Key
+ai:
+  enabled: ${AI_ENABLED:true}                 # 是否启用 AI 功能
+  chat:
+    provider: ${AI_CHAT_PROVIDER:deepseek}    # 对话模型提供商：deepseek / openai / bailian
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY}            # DeepSeek API Key
+      model: ${DEEPSEEK_CHAT_MODEL:deepseek-chat}
+      temperature: ${DEEPSEEK_CHAT_TEMPERATURE:0.7}
+      max-tokens: ${DEEPSEEK_CHAT_MAX_TOKENS:1024}
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY}              # OpenAI API Key
+      model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+      temperature: ${OPENAI_CHAT_TEMPERATURE:0.7}
+      max-tokens: ${OPENAI_CHAT_MAX_TOKENS:1024}
+    bailian:
+      base-url: ${BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${BAILIAN_API_KEY}             # 阿里云百炼 API Key
+      model: ${BAILIAN_CHAT_MODEL:qwen-plus}
+      temperature: ${BAILIAN_CHAT_TEMPERATURE:0.7}
+      max-tokens: ${BAILIAN_CHAT_MAX_TOKENS:1024}
+  embedding:
+    provider: ${AI_EMBEDDING_PROVIDER:openai} # 嵌入模型提供商：deepseek / openai / bailian
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY}
+      model: ${DEEPSEEK_EMBEDDING_MODEL:deepseek-embedding}
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY}
+      model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    bailian:
+      base-url: ${BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${BAILIAN_API_KEY}
+      model: ${BAILIAN_EMBEDDING_MODEL:text-embedding-v3}
+  rag:
+    top-k: ${RAG_TOP_K:5}                     # 检索片段数量
+    chunk-size: ${RAG_CHUNK_SIZE:500}         # 分块目标 token 数
+    chunk-overlap: ${RAG_CHUNK_OVERLAP:100}   # 分块重叠 token 数
+    max-context-tokens: ${RAG_MAX_CONTEXT_TOKENS:3000}  # 传给模型的最大上下文 token 数
+    rate-limit-per-minute: ${RAG_RATE_LIMIT:10} # 每 IP 每分钟请求次数

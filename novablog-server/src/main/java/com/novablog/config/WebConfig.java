@@ -1,6 +1,7 @@
 package com.novablog.config;
 
 import com.novablog.interceptor.JwtInterceptor;
+import com.novablog.rag.interceptor.RagRateLimitInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -9,13 +10,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Web 配置类
- * 注册 JWT 拦截器并配置放行路径
+ * 注册 JWT 拦截器、RAG 限流拦截器并配置放行路径
  */
 @Configuration
 @RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
 
     private final JwtInterceptor jwtInterceptor;
+    private final RagRateLimitInterceptor ragRateLimitInterceptor;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
@@ -42,7 +44,12 @@ public class WebConfig implements WebMvcConfigurer {
                         "/article/hot",        // 热门文章列表
                         "/category/list",      // 分类列表
                         "/tag/list",           // 标签列表
-                        "/comment/list"        // 评论列表
+                        "/comment/list",       // 评论列表
+                        "/rag/ask",             // RAG 问答（公开，单独限流）
+                        "/rag/ask/stream"       // RAG 流式问答（公开，单独限流）
                 );
+
+        registry.addInterceptor(ragRateLimitInterceptor)
+                .addPathPatterns("/rag/ask", "/chat/ask", "/rag/ask/stream", "/chat/ask/stream");
     }
 }

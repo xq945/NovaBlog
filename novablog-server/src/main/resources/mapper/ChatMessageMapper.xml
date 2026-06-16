@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.chat.mapper.ChatMessageMapper">
+
+    <resultMap id="messageResultMap" type="com.novablog.chat.entity.ChatMessage">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="role" column="role"/>
+        <result property="content" column="content"/>
+        <result property="sourcesJson" column="sources_json"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <resultMap id="messageVOResultMap" type="com.novablog.chat.vo.ChatMessageVO">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="role" column="role"/>
+        <result property="content" column="content"/>
+        <result property="sources" column="sources_json"
+                typeHandler="com.novablog.chat.handler.SourceArticleListTypeHandler"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO chat_message (session_id, role, content, sources_json)
+        VALUES (#{sessionId}, #{role}, #{content}, #{sourcesJson})
+    </insert>
+
+    <select id="findById" resultMap="messageResultMap">
+        SELECT * FROM chat_message WHERE id = #{id} LIMIT 1
+    </select>
+
+    <select id="findBySessionId" resultMap="messageVOResultMap">
+        SELECT id, session_id, role, content, sources_json, create_time
+        FROM chat_message
+        WHERE session_id = #{sessionId}
+        ORDER BY create_time ASC, id ASC
+    </select>
+
+    <select id="findHistoryBefore" resultMap="messageVOResultMap">
+        SELECT id, session_id, role, content, sources_json, create_time
+        FROM chat_message
+        WHERE session_id = #{sessionId}
+          AND id &lt;= #{messageId}
+        ORDER BY create_time ASC, id ASC
+    </select>
+
+    <update id="updateContent">
+        UPDATE chat_message SET content = #{content} WHERE id = #{id}
+    </update>
+
+    <delete id="deleteFromMessage">
+        DELETE FROM chat_message
+        WHERE session_id = #{sessionId}
+          AND id &gt;= #{messageId}
+    </delete>
+
+    <delete id="deleteBySessionId">
+        DELETE FROM chat_message WHERE session_id = #{sessionId}
+    </delete>
+
+    <select id="countBySessionId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM chat_message WHERE session_id = #{sessionId}
+    </select>
+
+</mapper>

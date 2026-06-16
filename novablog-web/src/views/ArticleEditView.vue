@@ -242,6 +242,9 @@ onMounted(() => {
         {{ isEdit ? '编辑文章' : '发布文章' }}
       </div>
       <div class="nav-actions">
+        <span class="nav-link" @click="router.push('/chat')">
+          <el-icon><ChatDotRound /></el-icon> 问答
+        </span>
         <el-button @click="goBack">取消</el-button>
         <el-button type="info" @click="handleSaveDraft" :loading="loading">
           保存草稿

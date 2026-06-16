@@ -49,14 +49,22 @@ public class JwtInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 1. 从请求头提取 Token
+        // 1. 从请求头提取 Token，header 不存在时尝试从 URL 参数获取（SSE 场景）
         String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        String token = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else {
+            String paramToken = request.getParameter("token");
+            if (paramToken != null && !paramToken.isEmpty()) {
+                token = paramToken;
+            }
+        }
+
+        if (token == null || token.isEmpty()) {
             writeErrorResponse(response, 401, "请先登录");
             return false;
         }
-
-        String token = authHeader.substring(7);
 
         // 2. 解析并验证 Token
         try {

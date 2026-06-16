@@ -47,7 +47,12 @@ public enum ErrorCode {
     /**
      * 文件上传过大
      */
-    FILE_TOO_LARGE(4001, "文件大小不能超过5MB");
+    FILE_TOO_LARGE(4001, "文件大小不能超过5MB"),
+
+    /**
+     * AI 服务调用失败
+     */
+    AI_SERVICE_ERROR(5001, "AI 服务调用失败，请稍后重试");
 
     private final int code;
     private final String defaultMessage;

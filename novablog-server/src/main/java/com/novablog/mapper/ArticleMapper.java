@@ -145,6 +145,22 @@ public interface ArticleMapper {
                               @Param("likeCountList") List<Long> likeCountList);
 
     /**
+     * 根据索引状态统计文章数量
+     *
+     * @param indexed 索引状态
+     * @return 数量
+     */
+    Long countByIndexedStatus(@Param("indexed") Integer indexed);
+
+    /**
+     * 根据索引状态查询文章
+     *
+     * @param indexed 索引状态
+     * @return 文章列表
+     */
+    List<Article> findByIndexedStatus(@Param("indexed") Integer indexed);
+
+    /**
      * 查询所有已发布文章（Redis初始化用）
      *
      * @return 文章列表

@@ -24,8 +24,11 @@ import com.novablog.vo.ArticleVO;
 import com.novablog.vo.HotArticleVO;
 import com.novablog.vo.LikeStatusVO;
 import com.novablog.vo.TagVO;
+import com.novablog.rag.event.ArticlePublishedEvent;
+import com.novablog.rag.service.ArticleIndexService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +57,8 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleStatsComponent articleStatsComponent;
     private final TagRelationComponent tagRelationComponent;
     private final ArticlePermissionComponent articlePermissionComponent;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ArticleIndexService articleIndexService;
 
     /**
      * 摘要自动截取长度
@@ -131,6 +136,9 @@ public class ArticleServiceImpl implements ArticleService {
 
         // 8. 初始化 Redis 浏览量（文章发布时 view_count 为 0）
         articleStatsComponent.initViewCount(articleId);
+
+        // 9. 触发向量索引（异步）
+        eventPublisher.publishEvent(new ArticlePublishedEvent(articleId, true));
 
         return articleId;
     }
@@ -325,6 +333,9 @@ public class ArticleServiceImpl implements ArticleService {
                 log.warn("状态变更时更新 ZSet 失败, articleId={}, newStatus={}", articleId, newStatus, e);
             }
         }
+
+        // 10. 触发向量索引重建（异步）
+        eventPublisher.publishEvent(new ArticlePublishedEvent(articleId, false));
     }
 
     @Override
@@ -349,6 +360,13 @@ public class ArticleServiceImpl implements ArticleService {
         articleStatsComponent.deleteViewCount(id);
         articleStatsComponent.deleteLikeSet(id);
         articleStatsComponent.removeFromHot(id);
+
+        // 6. 清理向量索引
+        try {
+            articleIndexService.deleteIndex(id);
+        } catch (Exception e) {
+            log.warn("删除文章向量索引失败, articleId={}", id, e);
+        }
     }
 
     @Override

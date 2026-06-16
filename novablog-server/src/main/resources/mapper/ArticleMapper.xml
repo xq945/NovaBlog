@@ -15,6 +15,7 @@
         <result property="userId" column="user_id"/>
         <result property="categoryId" column="category_id"/>
         <result property="status" column="status"/>
+        <result property="indexed" column="indexed"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
     </resultMap>
@@ -165,6 +166,7 @@
             <if test="cover != null">cover = #{cover},</if>
             <if test="categoryId != null">category_id = #{categoryId},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="indexed != null">indexed = #{indexed},</if>
             <if test="viewCount != null">view_count = #{viewCount},</if>
             <if test="likeCount != null">like_count = #{likeCount},</if>
             update_time = NOW()
@@ -217,7 +219,19 @@
 
     <!-- 查询所有已发布文章（Redis初始化用） -->
     <select id="findAllPublished" resultMap="articleResultMap">
-        SELECT id, view_count, like_count FROM article WHERE status = 1
+        SELECT id, title, content, summary, cover, view_count, like_count, user_id, category_id, status, indexed, create_time, update_time
+        FROM article WHERE status = 1
+    </select>
+
+    <!-- 根据索引状态查询文章 -->
+    <select id="findByIndexedStatus" resultMap="articleResultMap">
+        SELECT id, title, content, summary, cover, view_count, like_count, user_id, category_id, status, indexed, create_time, update_time
+        FROM article WHERE indexed = #{indexed}
+    </select>
+
+    <!-- 根据索引状态统计文章数量 -->
+    <select id="countByIndexedStatus" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM article WHERE indexed = #{indexed}
     </select>
 
     <!-- 根据ID列表批量查询文章（热门文章用） -->

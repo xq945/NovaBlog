@@ -62,6 +62,11 @@ public class Article {
     private Integer status;
 
     /**
+     * 向量索引状态：0-未索引 1-已索引 2-索引失败
+     */
+    private Integer indexed;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

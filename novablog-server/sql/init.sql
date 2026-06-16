@@ -90,6 +90,7 @@ CREATE TABLE `article` (
     `user_id` BIGINT NOT NULL COMMENT '作者ID',
     `category_id` BIGINT NOT NULL COMMENT '分类ID',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-已发布 0-草稿',
+    `indexed` TINYINT NOT NULL DEFAULT 0 COMMENT '向量索引状态：0-未索引 1-已索引 2-索引失败',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
@@ -109,7 +110,23 @@ CREATE TABLE `article_tag` (
     KEY `idx_tag_id` (`tag_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章-标签关联表';
 
--- 6. 评论表
+-- 6. 文章向量分片表（RAG 检索用）
+DROP TABLE IF EXISTS `article_chunk`;
+CREATE TABLE `article_chunk` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `article_id` BIGINT NOT NULL COMMENT '文章ID',
+    `chunk_index` INT NOT NULL COMMENT '片段序号',
+    `content` TEXT NOT NULL COMMENT '纯文本片段内容',
+    `embedding` JSON NOT NULL COMMENT '向量数组（Float32列表）',
+    `token_count` INT DEFAULT 0 COMMENT '片段token估算数',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_article_chunk` (`article_id`, `chunk_index`),
+    KEY `idx_article_chunk_article_id` (`article_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章向量分片表';
+
+-- 7. 评论表
 DROP TABLE IF EXISTS `comment`;
 CREATE TABLE `comment` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -125,6 +142,34 @@ CREATE TABLE `comment` (
     KEY `idx_comment_parent_status_time` (`parent_id`, `status`, `create_time`) COMMENT '二级回复查询',
     KEY `idx_comment_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论表';
+
+-- 8. AI 对话会话表
+DROP TABLE IF EXISTS `chat_session`;
+CREATE TABLE `chat_session` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `title` VARCHAR(200) NOT NULL COMMENT '会话标题（AI 自动生成）',
+    `message_count` INT NOT NULL DEFAULT 0 COMMENT '消息数量',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_session_user_id` (`user_id`) COMMENT '查询用户会话列表',
+    KEY `idx_session_user_update_time` (`user_id`, `update_time`) COMMENT '用户会话按更新时间排序'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 对话会话表';
+
+-- 9. AI 对话消息表
+DROP TABLE IF EXISTS `chat_message`;
+CREATE TABLE `chat_message` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `session_id` BIGINT NOT NULL COMMENT '所属会话ID',
+    `role` VARCHAR(20) NOT NULL COMMENT '角色：user/assistant',
+    `content` LONGTEXT NOT NULL COMMENT '消息内容（Markdown）',
+    `sources_json` JSON DEFAULT NULL COMMENT 'AI 回答引用的来源文章',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_message_session_id` (`session_id`) COMMENT '查询会话消息列表',
+    KEY `idx_message_session_create_time` (`session_id`, `create_time`) COMMENT '会话消息按时间排序'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 对话消息表';
 
 -- ============================================
 -- 外键约束（保证数据完整性）
@@ -145,6 +190,14 @@ ALTER TABLE `comment`
     ADD CONSTRAINT `fk_comment_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE RESTRICT,
     ADD CONSTRAINT `fk_comment_parent` FOREIGN KEY (`parent_id`) REFERENCES `comment` (`id`) ON DELETE CASCADE,
     ADD CONSTRAINT `fk_comment_reply_to` FOREIGN KEY (`reply_to_id`) REFERENCES `user` (`id`) ON DELETE SET NULL;
+
+-- AI 对话会话表外键
+ALTER TABLE `chat_session`
+    ADD CONSTRAINT `fk_session_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE;
+
+-- AI 对话消息表外键
+ALTER TABLE `chat_message`
+    ADD CONSTRAINT `fk_message_session` FOREIGN KEY (`session_id`) REFERENCES `chat_session` (`id`) ON DELETE CASCADE;
 
 -- 恢复外键检查
 SET FOREIGN_KEY_CHECKS = 1;

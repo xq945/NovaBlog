@@ -38,3 +38,49 @@ aliyun:
     bucket: ${ALIYUN_OSS_BUCKET:}
     access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
     access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+
+# AI / RAG 配置（基于 Spring AI 框架）
+# 对话模型和嵌入模型由 AiModelConfig 根据 ai.chat.provider / ai.embedding.provider 动态装配
+# 注意：DeepSeek 目前仅支持 /chat/completions，嵌入模型需使用 OpenAI、百炼等兼容提供商
+ai:
+  enabled: ${AI_ENABLED:true}
+  chat:
+    provider: ${AI_CHAT_PROVIDER:deepseek}
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      model: ${DEEPSEEK_CHAT_MODEL:deepseek-chat}
+      temperature: ${DEEPSEEK_CHAT_TEMPERATURE:0.7}
+      max-tokens: ${DEEPSEEK_CHAT_MAX_TOKENS:1024}
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+      temperature: ${OPENAI_CHAT_TEMPERATURE:0.7}
+      max-tokens: ${OPENAI_CHAT_MAX_TOKENS:1024}
+    bailian:
+      base-url: ${BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${BAILIAN_API_KEY:}
+      model: ${BAILIAN_CHAT_MODEL:qwen-plus}
+      temperature: ${BAILIAN_CHAT_TEMPERATURE:0.7}
+      max-tokens: ${BAILIAN_CHAT_MAX_TOKENS:1024}
+  embedding:
+    provider: ${AI_EMBEDDING_PROVIDER:openai}
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      model: ${DEEPSEEK_EMBEDDING_MODEL:deepseek-embedding}
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    bailian:
+      base-url: ${BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${BAILIAN_API_KEY:}
+      model: ${BAILIAN_EMBEDDING_MODEL:text-embedding-v3}
+  rag:
+    top-k: ${RAG_TOP_K:5}
+    chunk-size: ${RAG_CHUNK_SIZE:500}
+    chunk-overlap: ${RAG_CHUNK_OVERLAP:100}
+    max-context-tokens: ${RAG_MAX_CONTEXT_TOKENS:3000}
+    rate-limit-per-minute: ${RAG_RATE_LIMIT:10}

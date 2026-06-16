@@ -276,6 +276,14 @@ onMounted(() => {
       <div class="nav-brand" @click="goBack">
         <el-icon><ArrowLeft /></el-icon> NovaBlog
       </div>
+      <div class="nav-links">
+        <span class="nav-link" @click="router.push('/')">
+          <el-icon><HomeFilled /></el-icon> 首页
+        </span>
+        <span class="nav-link" @click="router.push('/chat')">
+          <el-icon><ChatDotRound /></el-icon> 问答
+        </span>
+      </div>
     </nav>
 
     <!-- 文章内容 -->

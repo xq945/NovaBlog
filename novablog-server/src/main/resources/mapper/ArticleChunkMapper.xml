@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.rag.mapper.ArticleChunkMapper">
+
+    <!-- 批量插入片段 -->
+    <insert id="batchInsert">
+        INSERT INTO article_chunk (article_id, chunk_index, content, embedding, token_count)
+        VALUES
+        <foreach collection="chunks" item="chunk" separator=",">
+            (#{chunk.articleId}, #{chunk.chunkIndex}, #{chunk.content}, #{chunk.embedding}, #{chunk.tokenCount})
+        </foreach>
+    </insert>
+
+    <!-- 根据文章ID删除所有片段 -->
+    <delete id="deleteByArticleId">
+        DELETE FROM article_chunk WHERE article_id = #{articleId}
+    </delete>
+
+    <!-- 查询所有已发布文章的向量分片 -->
+    <select id="findAllPublishedChunks" resultType="com.novablog.rag.entity.ArticleChunk">
+        SELECT
+            ac.id, ac.article_id, ac.chunk_index, ac.content, ac.embedding, ac.token_count
+        FROM article_chunk ac
+        INNER JOIN article a ON ac.article_id = a.id
+        WHERE a.status = 1
+    </select>
+
+    <!-- 根据文章ID列表查询分片 -->
+    <select id="findByArticleIds" resultType="com.novablog.rag.entity.ArticleChunk">
+        SELECT
+            id, article_id, chunk_index, content, embedding, token_count
+        FROM article_chunk
+        WHERE article_id IN
+        <foreach collection="articleIds" item="articleId" open="(" separator="," close=")">
+            #{articleId}
+        </foreach>
+    </select>
+
+</mapper>
