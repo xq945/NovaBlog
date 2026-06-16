@@ -17,9 +17,11 @@ const editing = ref(false)
 const saving = ref(false)
 const avatarLoading = ref(false)
 const editForm = reactive({
+  username: '',
   nickname: '',
   email: '',
-  avatar: ''
+  avatar: '',
+  password: ''
 })
 
 const fetchProfile = async () => {
@@ -37,9 +39,11 @@ const fetchProfile = async () => {
 }
 
 const startEdit = () => {
+  editForm.username = profile.value?.username || ''
   editForm.nickname = profile.value?.nickname || ''
   editForm.email = profile.value?.email || ''
   editForm.avatar = profile.value?.avatar || ''
+  editForm.password = ''
   editing.value = true
 }
 
@@ -49,6 +53,20 @@ const cancelEdit = () => {
 }
 
 const handleSave = async () => {
+  const username = editForm.username.trim()
+  if (!username) {
+    ElMessage.error('用户名不能为空')
+    return
+  }
+  if (username.length < 3 || username.length > 20) {
+    ElMessage.error('用户名长度必须为3-20位')
+    return
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    ElMessage.error('用户名只能包含字母、数字、下划线')
+    return
+  }
+
   const nickname = editForm.nickname.trim()
   if (!nickname) {
     ElMessage.error('昵称不能为空')
@@ -69,12 +87,23 @@ const handleSave = async () => {
     return
   }
 
+  const password = editForm.password
+  if (password && password.length > 0) {
+    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]).{8,20}$/
+    if (!passwordPattern.test(password)) {
+      ElMessage.error('密码必须为8-20位，且同时包含大写字母、小写字母、数字、特殊符号')
+      return
+    }
+  }
+
   saving.value = true
   try {
     const res = await updateProfile({
+      username,
       nickname,
       email: email || null,
-      avatar: editForm.avatar || null
+      avatar: editForm.avatar || null,
+      password: password || null
     })
     if (res.code === 200) {
       ElMessage.success('保存成功')
@@ -229,31 +258,11 @@ onMounted(() => {
 
 <template>
   <div class="profile-page">
-    <!-- 顶部导航 -->
-    <nav class="navbar">
-      <div class="nav-brand" @click="router.push('/')">
-        <el-icon><ArrowLeft /></el-icon> NovaBlog
-      </div>
-      <div class="nav-links">
-        <span class="nav-link" @click="router.push('/')">
-          <el-icon><HomeFilled /></el-icon> 首页
-        </span>
-        <span class="nav-link" @click="router.push('/chat')">
-          <el-icon><ChatDotRound /></el-icon> 问答
-        </span>
-        <span v-if="userStore.userInfo?.role === 'ADMIN'" class="nav-link" @click="router.push('/admin')">
-          <el-icon><Setting /></el-icon> 后台管理
-        </span>
-        <span class="nav-link" @click="router.push('/article/create')">
-          <el-icon><Plus /></el-icon> 写文章
-        </span>
-      </div>
-    </nav>
-
-    <!-- 内容区域 -->
-    <div class="content-area">
-      <!-- 个人信息卡片 -->
-      <div class="profile-card" v-loading="loading">
+    <main class="profile-main">
+      <!-- 内容区域 -->
+      <div class="content-area">
+        <!-- 个人信息卡片 -->
+        <div class="profile-card" v-loading="loading">
         <div class="profile-main">
           <!-- 头像 -->
           <div class="avatar-wrapper">
@@ -318,6 +327,15 @@ onMounted(() => {
             <template v-else>
               <div class="edit-form">
                 <div class="form-row">
+                  <label>用户名</label>
+                  <el-input
+                    v-model="editForm.username"
+                    placeholder="请输入用户名"
+                    maxlength="20"
+                    class="edit-input"
+                  />
+                </div>
+                <div class="form-row">
                   <label>昵称</label>
                   <el-input
                     v-model="editForm.nickname"
@@ -333,6 +351,17 @@ onMounted(() => {
                     v-model="editForm.email"
                     placeholder="请输入邮箱（可选）"
                     maxlength="100"
+                    class="edit-input"
+                  />
+                </div>
+                <div class="form-row">
+                  <label>新密码</label>
+                  <el-input
+                    v-model="editForm.password"
+                    type="password"
+                    placeholder="不修改请留空"
+                    maxlength="20"
+                    show-password
                     class="edit-input"
                   />
                 </div>
@@ -415,65 +444,14 @@ onMounted(() => {
         </div>
       </div>
     </div>
-  </div>
+  </main>
+</div>
 </template>
 
 <style scoped>
 .profile-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-}
-
-/* 导航栏 */
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 48px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.nav-brand:hover {
-  color: #409eff;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.nav-link {
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: none;
-  font-size: 14px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  transition: all 0.2s;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.nav-link:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
 }
 
 /* 内容区域 */

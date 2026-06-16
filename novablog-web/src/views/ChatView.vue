@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore, useChatStore } from '../stores'
 import { askStream, deleteMessage, editMessage } from '../api/chat'
+import { copyToClipboard } from '../utils/clipboard'
+import { exportSession } from '../utils/export'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -339,6 +341,25 @@ const goToArticle = (id) => {
   router.push(`/article/${id}`)
 }
 
+// 复制单条 AI 回答
+const handleCopyAnswer = (msg) => {
+  if (!msg.content) {
+    ElMessage.warning('回答内容为空')
+    return
+  }
+  copyToClipboard(msg.content, '回答已复制', '复制失败，请手动复制')
+}
+
+// 导出当前会话
+const handleExportSession = () => {
+  if (!chatStore.currentSession || chatStore.messages.length === 0) {
+    ElMessage.warning('当前会话没有消息可导出')
+    return
+  }
+  exportSession(chatStore.currentSession, chatStore.messages)
+  ElMessage.success('会话已导出为 Markdown 文件')
+}
+
 // 格式化时间
 const formatTime = (time) => {
   if (!time) return ''
@@ -353,38 +374,15 @@ const formatTime = (time) => {
 
 // 当前是否有会话
 const hasCurrentSession = computed(() => !!chatStore.currentSessionId)
+const hasMessages = computed(() => chatStore.messages.length > 0)
 </script>
 
 <template>
   <div class="chat-page">
-    <!-- 顶部导航 -->
-    <nav class="navbar">
-      <div class="nav-brand" @click="router.push('/')">NovaBlog</div>
-      <div class="nav-links">
-        <span class="nav-link" @click="router.push('/')">
-          <el-icon><HomeFilled /></el-icon> 首页
-        </span>
-        <span class="nav-link active" @click="router.push('/chat')">
-          <el-icon><ChatDotRound /></el-icon> 问答
-        </span>
-        <template v-if="userStore.userInfo">
-          <span v-if="userStore.userInfo.role === 'ADMIN'" class="nav-link" @click="router.push('/admin')">
-            <el-icon><Setting /></el-icon> 后台管理
-          </span>
-          <span class="nav-link" @click="router.push('/profile')">
-            <el-icon><Document /></el-icon> 我的文章
-          </span>
-          <span class="user-name">{{ userStore.userInfo.nickname }}</span>
-        </template>
-        <template v-else>
-          <span class="nav-link" @click="router.push('/login')">登录</span>
-        </template>
-      </div>
-    </nav>
-
-    <div class="chat-layout">
-      <!-- 左侧会话列表 -->
-      <aside class="session-sidebar" :class="{ collapsed: sidebarCollapsed }">
+    <main>
+      <div class="chat-layout">
+        <!-- 左侧会话列表 -->
+        <aside class="session-sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-header">
           <el-button type="primary" class="new-session-btn" @click="handleNewSession">
             <el-icon><Plus /></el-icon>
@@ -455,6 +453,19 @@ const hasCurrentSession = computed(() => !!chatStore.currentSessionId)
 
         <!-- 消息列表 -->
         <div ref="messagesContainer" class="messages-container">
+          <!-- 导出栏 -->
+          <div v-if="hasMessages" class="export-bar">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              @click="handleExportSession"
+            >
+              <el-icon><Download /></el-icon>
+              <span class="export-text">导出会话</span>
+            </el-button>
+          </div>
+
           <!-- 空状态 -->
           <div
             v-if="!hasCurrentSession || chatStore.messages.length === 0"
@@ -518,6 +529,19 @@ const hasCurrentSession = computed(() => !!chatStore.currentSessionId)
                   </div>
                 </div>
 
+                <!-- AI 回答操作 -->
+                <div v-if="msg.role === 'assistant'" class="message-actions assistant-actions">
+                  <el-button
+                    type="primary"
+                    link
+                    size="small"
+                    title="复制回答"
+                    @click="handleCopyAnswer(msg)"
+                  >
+                    <el-icon><DocumentCopy /></el-icon> 复制
+                  </el-button>
+                </div>
+
                 <!-- 用户消息操作 -->
                 <div v-if="msg.role === 'user'" class="message-actions">
                   <el-button
@@ -577,7 +601,8 @@ const hasCurrentSession = computed(() => !!chatStore.currentSessionId)
         </div>
       </main>
     </div>
-  </div>
+  </main>
+</div>
 </template>
 
 <style scoped>
@@ -587,59 +612,13 @@ const hasCurrentSession = computed(() => !!chatStore.currentSessionId)
   color: #e2e8f0;
 }
 
-.navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 48px;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 100;
-}
-
-.nav-brand {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #60a5fa;
-  cursor: pointer;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: color 0.2s;
-  font-size: 0.95rem;
-}
-
-.nav-link:hover,
-.nav-link.active {
-  color: #60a5fa;
-}
-
-.user-name {
-  color: #e2e8f0;
-  font-weight: 500;
+.chat-page > main {
+  min-height: 100vh;
 }
 
 .chat-layout {
   display: flex;
   height: 100vh;
-  padding-top: 64px;
 }
 
 .session-sidebar {
@@ -907,8 +886,29 @@ const hasCurrentSession = computed(() => !!chatStore.currentSessionId)
   transition: opacity 0.2s;
 }
 
-.message-wrapper.user:hover .message-actions {
+.message-wrapper.user:hover .message-actions,
+.message-wrapper.assistant:hover .assistant-actions {
   opacity: 1;
+}
+
+.assistant-actions {
+  justify-content: flex-start;
+}
+
+.export-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.export-bar .el-button {
+  color: #94a3b8;
+}
+
+.export-bar .el-button:hover {
+  color: #60a5fa;
 }
 
 .source-cards {

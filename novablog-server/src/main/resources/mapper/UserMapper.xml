@@ -26,6 +26,14 @@
         SELECT * FROM user WHERE id = #{id} LIMIT 1
     </select>
 
+    <!-- 根据ID列表查询用户 -->
+    <select id="findByIds" resultMap="userResultMap">
+        SELECT * FROM user WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <!-- 插入新用户 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO user (username, password, nickname, avatar, email, role, status)
@@ -34,12 +42,27 @@
 
     <!-- 分页查询用户列表（按注册时间倒序） -->
     <select id="findList" resultMap="userResultMap">
-        SELECT * FROM user ORDER BY create_time DESC LIMIT #{size} OFFSET #{offset}
+        SELECT * FROM user
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (username LIKE CONCAT('%', #{keyword}, '%')
+                OR nickname LIKE CONCAT('%', #{keyword}, '%')
+                OR email LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY create_time DESC LIMIT #{size} OFFSET #{offset}
     </select>
 
     <!-- 查询用户总数 -->
     <select id="countAll" resultType="java.lang.Long">
         SELECT COUNT(*) FROM user
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (username LIKE CONCAT('%', #{keyword}, '%')
+                OR nickname LIKE CONCAT('%', #{keyword}, '%')
+                OR email LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
     </select>
 
     <!-- 更新用户状态 -->
@@ -47,12 +70,38 @@
         UPDATE user SET status = #{status} WHERE id = #{id}
     </update>
 
+    <!-- 根据ID列表批量删除用户 -->
+    <delete id="deleteByIds">
+        DELETE FROM user WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 查询指定用户中有文章的用户ID列表 -->
+    <select id="findUserIdsWithArticles" resultType="java.lang.Long">
+        SELECT DISTINCT user_id FROM article WHERE user_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 查询指定用户中有评论的用户ID列表 -->
+    <select id="findUserIdsWithComments" resultType="java.lang.Long">
+        SELECT DISTINCT user_id FROM comment WHERE user_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <!-- 更新用户个人信息 -->
     <update id="updateProfile">
         UPDATE user
-        SET nickname = #{nickname},
+        SET username = #{username},
+            nickname = #{nickname},
             email = #{email},
-            avatar = #{avatar}
+            avatar = #{avatar},
+            password = #{password}
         WHERE id = #{id}
     </update>
 

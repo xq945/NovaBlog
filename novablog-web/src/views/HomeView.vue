@@ -154,42 +154,13 @@ onUnmounted(() => {
 
 <template>
   <div class="home">
-    <!-- 顶部导航 -->
-    <nav class="navbar">
-      <div class="nav-brand" @click="router.push('/')">NovaBlog</div>
-      <div class="nav-links">
-        <span class="nav-link active" @click="router.push('/')">
-          <el-icon><HomeFilled /></el-icon> 首页
-        </span>
-        <span class="nav-link" @click="router.push('/chat')">
-          <el-icon><ChatDotRound /></el-icon> 问答
-        </span>
-        <template v-if="userStore.userInfo">
-          <span v-if="userStore.userInfo.role === 'ADMIN'" class="nav-link" @click="router.push('/admin')">
-            <el-icon><Setting /></el-icon> 后台管理
-          </span>
-          <span class="nav-link" @click="goToCreate">
-            <el-icon><Plus /></el-icon> 写文章
-          </span>
-          <span class="nav-link" @click="router.push('/profile')">
-            <el-icon><Document /></el-icon> 我的文章
-          </span>
-          <span class="user-name">{{ userStore.userInfo.nickname }}</span>
-          <span class="nav-link" @click="handleLogout">退出</span>
-        </template>
-        <template v-else>
-          <span class="nav-link" @click="router.push('/login')">登录</span>
-          <span class="nav-link nav-btn" @click="router.push('/register')">注册</span>
-        </template>
-      </div>
-    </nav>
-
-    <!-- 主内容区域：双列布局 -->
-    <div class="main-layout">
-      <!-- 左侧：文章列表 -->
-      <div class="content-left">
-        <!-- 筛选栏 -->
-        <div class="filter-bar">
+    <main class="home-main">
+      <!-- 主内容区域：双列布局 -->
+      <div class="main-layout">
+        <!-- 左侧：文章列表 -->
+        <div class="content-left">
+          <!-- 筛选栏 -->
+          <div class="filter-bar">
         <el-select
           v-model="selectedCategory"
           placeholder="全部分类"
@@ -317,7 +288,8 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </div>
+  </main>
+</div>
 </template>
 
 <style scoped>
@@ -326,72 +298,13 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 }
 
-/* 导航栏 */
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 48px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-brand {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #fff;
-  cursor: pointer;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.nav-link {
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: none;
-  font-size: 14px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  transition: all 0.2s;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.nav-link:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.nav-btn {
-  background: #409eff;
-  color: #fff;
-}
-
-.nav-btn:hover {
-  background: #66b1ff;
-}
-
-.user-name {
-  color: #fff;
-  font-size: 14px;
-}
-
 /* 主内容区域：双列布局 */
 .main-layout {
   display: flex;
   gap: 24px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 20px;
+  padding: 32px 24px;
 }
 
 .content-left {

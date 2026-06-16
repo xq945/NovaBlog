@@ -169,7 +169,7 @@
             <if test="indexed != null">indexed = #{indexed},</if>
             <if test="viewCount != null">view_count = #{viewCount},</if>
             <if test="likeCount != null">like_count = #{likeCount},</if>
-            update_time = NOW()
+            <if test="updateTime != null">update_time = #{updateTime},</if>
         </set>
         WHERE id = #{id}
     </update>

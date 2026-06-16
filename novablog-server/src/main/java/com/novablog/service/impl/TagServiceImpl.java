@@ -1,5 +1,7 @@
 package com.novablog.service.impl;
 
+import com.novablog.common.annotation.AutoFillTime;
+import com.novablog.common.enums.OperationType;
 import com.novablog.entity.Tag;
 import com.novablog.mapper.TagMapper;
 import com.novablog.service.TagService;
@@ -24,6 +26,7 @@ public class TagServiceImpl implements TagService {
     }
 
     @Override
+    @AutoFillTime(OperationType.INSERT)
     public Long create(String name) {
         Tag tag = new Tag();
         tag.setName(name);
@@ -32,6 +35,7 @@ public class TagServiceImpl implements TagService {
     }
 
     @Override
+    @AutoFillTime(OperationType.UPDATE)
     public void update(Long id, String name) {
         Tag tag = new Tag();
         tag.setId(id);

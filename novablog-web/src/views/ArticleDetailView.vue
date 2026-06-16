@@ -271,23 +271,9 @@ onMounted(() => {
 
 <template>
   <div class="article-detail-page">
-    <!-- 顶部导航 -->
-    <nav class="navbar">
-      <div class="nav-brand" @click="goBack">
-        <el-icon><ArrowLeft /></el-icon> NovaBlog
-      </div>
-      <div class="nav-links">
-        <span class="nav-link" @click="router.push('/')">
-          <el-icon><HomeFilled /></el-icon> 首页
-        </span>
-        <span class="nav-link" @click="router.push('/chat')">
-          <el-icon><ChatDotRound /></el-icon> 问答
-        </span>
-      </div>
-    </nav>
-
-    <!-- 文章内容 -->
-    <div class="content-area" v-loading="loading">
+    <main class="article-detail-main">
+      <!-- 文章内容 -->
+      <div class="content-area" v-loading="loading">
       <template v-if="article">
         <div class="article-header">
           <h1 class="article-title">{{ article.title }}</h1>
@@ -478,6 +464,7 @@ onMounted(() => {
         />
       </div>
     </div>
+    </main>
   </div>
 </template>
 

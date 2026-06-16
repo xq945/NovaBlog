@@ -5,13 +5,48 @@ import { getProfile } from '../api/user'
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('../views/HomeView.vue')
-  },
-  {
-    path: '/chat',
-    name: 'Chat',
-    component: () => import('../views/ChatView.vue')
+    component: () => import('../components/MainLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'Home',
+        component: () => import('../views/HomeView.vue')
+      },
+      {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('../views/ChatView.vue')
+      },
+      {
+        path: 'article/:id',
+        name: 'ArticleDetail',
+        component: () => import('../views/ArticleDetailView.vue')
+      },
+      {
+        path: 'article/create',
+        name: 'ArticleCreate',
+        component: () => import('../views/ArticleEditView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'article/edit/:id',
+        name: 'ArticleEdit',
+        component: () => import('../views/ArticleEditView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('../views/ProfileView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'admin',
+        name: 'Admin',
+        component: () => import('../views/AdminView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true }
+      }
+    ]
   },
   {
     path: '/login',
@@ -22,35 +57,6 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: () => import('../views/RegisterView.vue')
-  },
-  {
-    path: '/article/:id',
-    name: 'ArticleDetail',
-    component: () => import('../views/ArticleDetailView.vue')
-  },
-  {
-    path: '/article/create',
-    name: 'ArticleCreate',
-    component: () => import('../views/ArticleEditView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/article/edit/:id',
-    name: 'ArticleEdit',
-    component: () => import('../views/ArticleEditView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/profile',
-    name: 'Profile',
-    component: () => import('../views/ProfileView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/admin',
-    name: 'Admin',
-    component: () => import('../views/AdminView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
 

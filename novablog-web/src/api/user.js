@@ -52,13 +52,25 @@ export function updateProfile(data) {
 
 /**
  * 管理员查询用户列表
- * @param {Object} params - { page, size }
+ * @param {Object} params - { page, size, keyword }
  */
 export function getAdminUserList(params) {
   return request({
     url: '/user/admin/list',
     method: 'get',
     params
+  })
+}
+
+/**
+ * 管理员批量删除用户
+ * @param {number[]} userIds - 用户ID数组
+ */
+export function batchDeleteUsers(userIds) {
+  return request({
+    url: '/user/admin/batch',
+    method: 'delete',
+    data: userIds
   })
 }
 

@@ -331,41 +331,38 @@ onMounted(() => {
 
 <template>
   <div class="article-edit-page">
-    <!-- 顶部导航 -->
-    <nav class="navbar">
-      <div class="nav-brand" @click="goBack">
-        <el-icon><ArrowLeft /></el-icon>
-        {{ isEdit ? '编辑文章' : '发布文章' }}
-      </div>
-      <div class="nav-actions">
-        <span class="nav-link" @click="router.push('/chat')">
-          <el-icon><ChatDotRound /></el-icon> 问答
-        </span>
-        <el-upload
-          ref="importFileRef"
-          class="import-upload"
-          :http-request="handleImportFile"
-          :before-upload="beforeImportUpload"
-          accept=".md,.txt,.docx,.pdf"
-          :show-file-list="false"
-          :disabled="importLoading"
-        >
-          <el-button :loading="importLoading" type="success">
-            <el-icon><Upload /></el-icon> 导入文件
+    <main class="article-edit-main">
+      <!-- 顶部工具栏 -->
+      <div class="edit-toolbar">
+        <div class="toolbar-title">
+          {{ isEdit ? '编辑文章' : '发布文章' }}
+        </div>
+        <div class="toolbar-actions">
+          <el-upload
+            ref="importFileRef"
+            class="import-upload"
+            :http-request="handleImportFile"
+            :before-upload="beforeImportUpload"
+            accept=".md,.txt,.docx,.pdf"
+            :show-file-list="false"
+            :disabled="importLoading"
+          >
+            <el-button :loading="importLoading" type="success">
+              <el-icon><Upload /></el-icon> 导入文件
+            </el-button>
+          </el-upload>
+          <el-button @click="goBack">取消</el-button>
+          <el-button type="info" @click="handleSaveDraft" :loading="loading">
+            保存草稿
           </el-button>
-        </el-upload>
-        <el-button @click="goBack">取消</el-button>
-        <el-button type="info" @click="handleSaveDraft" :loading="loading">
-          保存草稿
-        </el-button>
-        <el-button type="primary" @click="handlePublish" :loading="loading">
-          {{ isEdit ? '保存修改' : '立即发布' }}
-        </el-button>
+          <el-button type="primary" @click="handlePublish" :loading="loading">
+            {{ isEdit ? '保存修改' : '立即发布' }}
+          </el-button>
+        </div>
       </div>
-    </nav>
 
-    <!-- 编辑表单 -->
-    <div class="content-area" v-loading="loading">
+      <!-- 编辑表单 -->
+      <div class="content-area" v-loading="loading">
       <el-form
         ref="formRef"
         :model="form"
@@ -445,31 +442,35 @@ onMounted(() => {
           </div>
         </el-form-item>
 
-        <el-form-item label="摘要（可选，留空则自动从正文生成）">
-          <div class="summary-row">
-            <el-input
-              v-model="form.summary"
-              type="textarea"
-              :rows="2"
-              placeholder="请输入文章摘要"
-              maxlength="500"
-              show-word-limit
-              class="summary-input"
-            />
-            <el-button
-              type="primary"
-              :loading="summaryLoading"
-              class="summary-btn"
-              @click="handleGenerateSummary"
-            >
-              <el-icon><MagicStick /></el-icon> AI 生成
-            </el-button>
-          </div>
+        <el-form-item class="summary-form-item">
+          <template #label>
+            <div class="summary-label-row">
+              <span>摘要</span>
+              <el-button
+                type="primary"
+                :loading="summaryLoading"
+                class="summary-generate-btn"
+                @click="handleGenerateSummary"
+              >
+                <span>AI 生成</span>
+              </el-button>
+            </div>
+          </template>
+          <el-input
+            v-model="form.summary"
+            type="textarea"
+            :rows="4"
+            placeholder="留空保存时将自动从正文生成；也可点击标签栏按钮由 AI 自动生成摘要..."
+            maxlength="500"
+            show-word-limit
+            class="summary-textarea"
+          />
         </el-form-item>
 
         <el-form-item label="正文" prop="content" class="content-editor">
           <MdEditor
             v-model="form.content"
+            theme="dark"
             placeholder="请输入 Markdown 格式的正文..."
             @onUploadImg="onUploadImg"
             :toolbars="[
@@ -491,48 +492,43 @@ onMounted(() => {
               'preview',
               'catalog'
             ]"
-            style="height: 500px"
+            style="height: 600px"
           />
         </el-form-item>
       </el-form>
     </div>
-  </div>
+  </main>
+</div>
 </template>
 
 <style scoped>
 .article-edit-page {
   min-height: 100vh;
-  background: #f5f7fa;
+  background: var(--nb-bg-primary);
+  color: var(--nb-text-primary);
 }
 
-/* 导航栏 */
-.navbar {
+/* 顶部工具栏 */
+.edit-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 48px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 32px;
+  background: var(--nb-bg-glass);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--nb-border-color);
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
-.nav-brand {
+.toolbar-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #303133;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  color: var(--nb-text-primary);
 }
 
-.nav-brand:hover {
-  color: #409eff;
-}
-
-.nav-actions {
+.toolbar-actions {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -544,33 +540,94 @@ onMounted(() => {
 
 /* 内容区域 */
 .content-area {
-  max-width: 960px;
+  width: 90%;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 32px 20px;
+  padding: 32px 24px;
 }
 
 .edit-form :deep(.el-form-item__label) {
   font-weight: 500;
-  color: #606266;
+  color: var(--nb-text-secondary);
 }
 
-.summary-row {
+/* 统一暗色输入框 */
+.edit-form :deep(.el-input__wrapper),
+.edit-form :deep(.el-textarea__inner),
+.edit-form :deep(.el-select .el-input__wrapper) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
+}
+
+.edit-form :deep(.el-input__wrapper.is-focus),
+.edit-form :deep(.el-textarea__inner:focus),
+.edit-form :deep(.el-select .el-input.is-focus .el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--nb-accent) inset !important;
+}
+
+.edit-form :deep(.el-input__wrapper:hover),
+.edit-form :deep(.el-textarea__inner:hover),
+.edit-form :deep(.el-select .el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
+}
+
+.edit-form :deep(.el-input__inner),
+.edit-form :deep(.el-textarea__inner) {
+  color: var(--nb-text-primary) !important;
+}
+
+.edit-form :deep(.el-input__inner::placeholder),
+.edit-form :deep(.el-textarea__inner::placeholder) {
+  color: var(--nb-text-muted) !important;
+}
+
+.edit-form :deep(.el-input__count) {
+  background: transparent !important;
+  color: var(--nb-text-muted) !important;
+}
+
+.edit-form :deep(.el-select .el-select__tags) {
+  background: transparent;
+}
+
+/* 摘要区域 */
+.summary-form-item :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: var(--nb-text-primary);
+  width: 100%;
+}
+
+.summary-label-row {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
   gap: 12px;
-  align-items: flex-start;
 }
 
-.summary-input {
-  flex: 1;
+.summary-generate-btn {
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-weight: 500;
+  flex-shrink: 0;
+  font-size: 0.85rem;
 }
 
-.summary-btn {
-  height: 54px;
-  white-space: nowrap;
+.summary-textarea :deep(.el-textarea__inner) {
+  min-height: 120px;
+  padding: 12px 15px;
+  line-height: 1.6;
+  resize: none;
+}
+
+.summary-textarea :deep(.el-input__count) {
+  right: 15px;
+  bottom: 12px;
 }
 
 .content-editor :deep(.md-editor) {
   border-radius: 8px;
+  border: 1px solid var(--nb-border-color);
 }
 
 /* 封面图上传 */
@@ -590,16 +647,17 @@ onMounted(() => {
   gap: 8px;
   width: 100%;
   height: 180px;
-  border: 2px dashed #dcdfe6;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.2s;
-  color: #909399;
+  transition: border-color 0.2s, color 0.2s;
+  color: var(--nb-text-muted);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .upload-placeholder:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: var(--nb-accent);
+  color: var(--nb-accent);
 }
 
 .upload-text {
@@ -608,7 +666,7 @@ onMounted(() => {
 
 .upload-hint {
   font-size: 12px;
-  color: #a8abb2;
+  color: var(--nb-text-muted);
 }
 
 .cover-preview {
@@ -617,6 +675,7 @@ onMounted(() => {
   height: 180px;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid var(--nb-border-color);
 }
 
 .preview-img {
@@ -628,5 +687,28 @@ onMounted(() => {
   position: absolute;
   top: 8px;
   right: 8px;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 16px;
+  }
+
+  .nav-actions {
+    gap: 8px;
+  }
+
+  .content-area {
+    padding: 20px 16px;
+  }
+
+  .summary-label-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .summary-generate-btn {
+    align-self: flex-end;
+  }
 }
 </style>

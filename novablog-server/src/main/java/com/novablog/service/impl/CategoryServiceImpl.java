@@ -1,5 +1,7 @@
 package com.novablog.service.impl;
 
+import com.novablog.common.annotation.AutoFillTime;
+import com.novablog.common.enums.OperationType;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.entity.Category;
 import com.novablog.mapper.CategoryMapper;
@@ -24,6 +26,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @AutoFillTime(OperationType.INSERT)
     public Long create(String name, String description) {
         Category category = new Category();
         category.setName(name);
@@ -33,6 +36,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @AutoFillTime(OperationType.UPDATE)
     public void update(Long id, String name, String description) {
         Category category = new Category();
         category.setId(id);

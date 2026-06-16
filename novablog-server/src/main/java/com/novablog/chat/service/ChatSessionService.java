@@ -9,6 +9,8 @@ import com.novablog.chat.vo.ChatSessionDetailVO;
 import com.novablog.chat.vo.ChatSessionVO;
 import com.novablog.common.PageResult;
 import com.novablog.common.UserContext;
+import com.novablog.common.annotation.AutoFillTime;
+import com.novablog.common.enums.OperationType;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class ChatSessionService {
      * @return 会话 VO
      */
     @Transactional
+    @AutoFillTime(OperationType.INSERT)
     public ChatSessionVO createSession(String firstQuestion) {
         Long userId = requireLogin();
 
@@ -61,6 +64,7 @@ public class ChatSessionService {
      * @return 会话 VO
      */
     @Transactional
+    @AutoFillTime(OperationType.INSERT)
     public ChatSessionVO createEmptySession(String title) {
         Long userId = requireLogin();
 
@@ -142,6 +146,7 @@ public class ChatSessionService {
      * @return 消息ID
      */
     @Transactional
+    @AutoFillTime(OperationType.INSERT)
     public Long saveUserMessage(Long sessionId, String content) {
         ChatMessage message = new ChatMessage();
         message.setSessionId(sessionId);
@@ -155,6 +160,7 @@ public class ChatSessionService {
      * 保存 AI 回答消息
      */
     @Transactional
+    @AutoFillTime(OperationType.INSERT)
     public void saveAssistantMessage(Long sessionId, String content, String sourcesJson) {
         ChatMessage message = new ChatMessage();
         message.setSessionId(sessionId);

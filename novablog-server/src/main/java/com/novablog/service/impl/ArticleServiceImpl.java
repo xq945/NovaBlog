@@ -1,5 +1,7 @@
 package com.novablog.service.impl;
 
+import com.novablog.common.annotation.AutoFillTime;
+import com.novablog.common.enums.OperationType;
 import com.novablog.common.PageResult;
 import com.novablog.common.UserContext;
 import com.novablog.common.constant.RedisKeyConstant;
@@ -77,6 +79,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
+    @AutoFillTime(OperationType.INSERT)
     public Long publish(ArticleDTO articleDTO) {
         // 1. 参数校验
         String title = articleDTO.getTitle();
@@ -247,6 +250,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
+    @AutoFillTime(OperationType.UPDATE)
     public void update(ArticleDTO articleDTO) {
         Long articleId = articleDTO.getId();
         if (articleId == null) {

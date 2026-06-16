@@ -8,6 +8,9 @@ CREATE DATABASE IF NOT EXISTS novablog
 
 USE novablog;
 
+-- 强制当前连接使用 utf8mb4，避免 Windows 命令行默认字符集导致中文乱码或截断
+SET NAMES utf8mb4;
+
 -- 禁用外键检查，确保 DROP TABLE 可以按任意顺序执行
 SET FOREIGN_KEY_CHECKS = 0;
 

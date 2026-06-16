@@ -1,7 +1,9 @@
 package com.novablog.service;
 
 import com.novablog.common.exception.BusinessException;
+import com.novablog.config.AiProperties;
 import com.novablog.dto.ArticleImportResult;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -26,6 +28,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ArticleImportService {
 
     /**
@@ -42,6 +45,9 @@ public class ArticleImportService {
      * 摘要最大长度
      */
     private static final int SUMMARY_MAX_LENGTH = 150;
+
+    private final AiSummaryService aiSummaryService;
+    private final AiProperties aiProperties;
 
     /**
      * 导入文件并解析为文章数据
@@ -151,9 +157,9 @@ public class ArticleImportService {
     }
 
     /**
-     * 提取摘要
+     * 提取兜底摘要（正文前 150 字符）
      */
-    private String extractSummary(String content) {
+    private String extractFallbackSummary(String content) {
         String plainText = content
                 .replaceAll("```[\\s\\S]*?```", "")
                 .replaceAll("`([^`]+)`", "$1")
@@ -168,6 +174,28 @@ public class ArticleImportService {
             return plainText;
         }
         return plainText.substring(0, SUMMARY_MAX_LENGTH);
+    }
+
+    /**
+     * 提取摘要：优先使用 AI 生成，失败时降级为前 150 字符截断
+     */
+    private String extractSummary(String content) {
+        if (!aiProperties.isEnabled()) {
+            return extractFallbackSummary(content);
+        }
+
+        try {
+            String summary = aiSummaryService.generateSummary(content);
+            if (summary != null && !summary.isBlank()) {
+                return summary;
+            }
+        } catch (BusinessException e) {
+            log.warn("AI 摘要生成失败，使用兜底摘要。原因：{}", e.getMessage());
+        } catch (Exception e) {
+            log.error("AI 摘要生成异常，使用兜底摘要", e);
+        }
+
+        return extractFallbackSummary(content);
     }
 
     /**

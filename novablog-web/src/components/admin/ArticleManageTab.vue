@@ -68,7 +68,7 @@ onMounted(() => {
       <el-table-column prop="createTime" label="创建时间" width="160">
         <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right" class-name="operation-column">
         <template #default="{ row }">
           <el-button type="primary" size="small" text @click="router.push(`/article/${row.id}`)">查看</el-button>
           <el-button type="primary" size="small" text @click="router.push(`/article/edit/${row.id}`)">编辑</el-button>
@@ -110,5 +110,18 @@ onMounted(() => {
 
 :deep(.el-pagination .el-pager li.is-active) {
   color: #fff;
+}
+
+:deep(.operation-column .cell) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+:deep(.operation-column .el-button) {
+  padding: 4px 8px;
+  margin: 0;
 }
 </style>

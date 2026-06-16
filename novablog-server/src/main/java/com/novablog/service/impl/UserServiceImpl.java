@@ -1,5 +1,7 @@
 package com.novablog.service.impl;
 
+import com.novablog.common.annotation.AutoFillTime;
+import com.novablog.common.enums.OperationType;
 import com.novablog.common.UserContext;
 import com.novablog.common.constant.RoleConstant;
 import com.novablog.common.exception.BusinessException;
@@ -41,6 +43,7 @@ public class UserServiceImpl implements UserService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
+    @AutoFillTime(OperationType.INSERT)
     public void register(RegisterDTO registerDTO) {
         String username = registerDTO.getUsername();
         String password = registerDTO.getPassword();
@@ -133,7 +136,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void updateProfile(String nickname, String email, String avatar) {
+    public void updateProfile(String username, String nickname, String email, String avatar, String password) {
         // 1. 参数校验
         if (nickname == null || nickname.isEmpty()) {
             throw new BusinessException("昵称不能为空");
@@ -166,9 +169,34 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(401, "用户已被禁用");
         }
 
-        // 4. 执行更新（email/avatar 为空字符串时转为 null，表示清空）
+        // 4. 校验用户名（如果修改）
+        String usernameToUpdate = user.getUsername();
+        if (username != null && !username.isEmpty() && !username.equals(user.getUsername())) {
+            if (username.length() < 3 || username.length() > 20) {
+                throw new BusinessException("用户名长度必须为3-20位");
+            }
+            if (!Pattern.matches("^[a-zA-Z0-9_]+$", username)) {
+                throw new BusinessException("用户名只能包含字母、数字、下划线");
+            }
+            User existingUser = userMapper.findByUsername(username);
+            if (existingUser != null && !existingUser.getId().equals(userId)) {
+                throw new BusinessException("用户名已存在");
+            }
+            usernameToUpdate = username;
+        }
+
+        // 5. 校验密码（如果修改）
+        String passwordToUpdate = user.getPassword();
+        if (password != null && !password.isEmpty()) {
+            if (!PASSWORD_PATTERN.matcher(password).matches()) {
+                throw new BusinessException("密码必须为8-20位，且同时包含大写字母、小写字母、数字、特殊符号");
+            }
+            passwordToUpdate = passwordEncoder.encode(password);
+        }
+
+        // 6. 执行更新（email/avatar 为空字符串时转为 null，表示清空）
         String emailToUpdate = (email == null || email.isEmpty()) ? null : email;
         String avatarToUpdate = (avatar == null || avatar.isEmpty()) ? null : avatar;
-        userMapper.updateProfile(userId, nickname, emailToUpdate, avatarToUpdate);
+        userMapper.updateProfile(userId, usernameToUpdate, nickname, emailToUpdate, avatarToUpdate, passwordToUpdate);
     }
 }

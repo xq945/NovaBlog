@@ -1,5 +1,7 @@
 package com.novablog.service.impl;
 
+import com.novablog.common.annotation.AutoFillTime;
+import com.novablog.common.enums.OperationType;
 import com.novablog.common.PageResult;
 import com.novablog.common.UserContext;
 import com.novablog.common.constant.RoleConstant;
@@ -43,6 +45,7 @@ public class CommentServiceImpl implements CommentService {
     private static final int CONTENT_MAX_LENGTH = 500;
 
     @Override
+    @AutoFillTime(OperationType.INSERT)
     public CommentVO publish(CommentDTO dto) {
         // 1. 参数校验
         String content = dto.getContent();

@@ -17,6 +17,7 @@ import com.novablog.service.assembler.UserVOAssembler;
 import com.novablog.vo.AdminUserVO;
 import com.novablog.vo.ArticleVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -25,10 +26,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 用户控制器
@@ -106,9 +111,11 @@ public class UserController {
     @PutMapping("/profile")
     public Result<Void> updateProfile(@RequestBody UpdateProfileDTO updateProfileDTO) {
         userService.updateProfile(
+                updateProfileDTO.getUsername(),
                 updateProfileDTO.getNickname(),
                 updateProfileDTO.getEmail(),
-                updateProfileDTO.getAvatar()
+                updateProfileDTO.getAvatar(),
+                updateProfileDTO.getPassword()
         );
         return Result.success();
     }
@@ -131,24 +138,102 @@ public class UserController {
     /**
      * 管理员查询用户列表
      *
-     * @param page 页码
-     * @param size 每页数量
+     * @param page    页码
+     * @param size    每页数量
+     * @param keyword 关键词，模糊匹配用户名/昵称/邮箱
      * @return 用户分页结果
      */
     @GetMapping("/admin/list")
     @RequireAdmin
     public Result<PageResult<AdminUserVO>> adminList(
             @RequestParam(required = false, defaultValue = "1") Integer page,
-            @RequestParam(required = false, defaultValue = "10") Integer size) {
+            @RequestParam(required = false, defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword) {
         if (page == null || page < 1) page = 1;
         if (size == null || size < 1) size = 10;
         if (size > 50) size = 50;
         int offset = (page - 1) * size;
 
-        List<User> users = userMapper.findList(offset, size);
-        Long total = userMapper.countAll();
+        String searchKeyword = keyword == null || keyword.trim().isEmpty() ? null : keyword.trim();
+        List<User> users = userMapper.findList(offset, size, searchKeyword);
+        Long total = userMapper.countAll(searchKeyword);
 
         return Result.success(new PageResult<>(total, UserVOAssembler.toAdminUserVOList(users)));
+    }
+
+    /**
+     * 管理员批量删除用户
+     * 会自动过滤管理员、当前登录用户以及存在文章/评论关联数据的用户
+     *
+     * @param userIds 待删除用户ID列表
+     * @return 删除结果统计
+     */
+    @DeleteMapping("/admin/batch")
+    @RequireAdmin
+    public Result<Map<String, Object>> batchDelete(@RequestBody List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            throw new BusinessException("请选择要删除的用户");
+        }
+
+        // 去重并过滤空值
+        List<Long> distinctIds = userIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (distinctIds.isEmpty()) {
+            throw new BusinessException("请选择要删除的用户");
+        }
+
+        Long currentUserId = UserContext.getUserId();
+
+        // 查询用户详情，过滤管理员和当前登录用户
+        List<User> users = userMapper.findByIds(distinctIds);
+        List<Long> deletableIds = users.stream()
+                .filter(user -> !"ADMIN".equals(user.getRole()))
+                .filter(user -> !Objects.equals(user.getId(), currentUserId))
+                .map(User::getId)
+                .collect(Collectors.toList());
+
+        if (deletableIds.isEmpty()) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("deletedCount", 0);
+            result.put("skippedCount", distinctIds.size());
+            result.put("skippedReason", "所选用户包含管理员或当前登录用户，已跳过");
+            return Result.success(result);
+        }
+
+        // 查询有文章或评论的用户，进一步过滤
+        Set<Long> blockedIds = new HashSet<>();
+        blockedIds.addAll(userMapper.findUserIdsWithArticles(deletableIds));
+        blockedIds.addAll(userMapper.findUserIdsWithComments(deletableIds));
+
+        List<Long> finalIds = deletableIds.stream()
+                .filter(id -> !blockedIds.contains(id))
+                .collect(Collectors.toList());
+
+        int deletedCount = 0;
+        if (!finalIds.isEmpty()) {
+            deletedCount = userMapper.deleteByIds(finalIds);
+        }
+
+        int skippedCount = distinctIds.size() - deletedCount;
+        String reason;
+        if (skippedCount == 0) {
+            reason = "";
+        } else if (!blockedIds.isEmpty() && deletableIds.size() - finalIds.size() > 0) {
+            reason = "已跳过管理员/当前用户及存在文章、评论关联数据的用户";
+        } else if (!blockedIds.isEmpty()) {
+            reason = "已跳过存在文章或评论关联数据的用户";
+        } else {
+            reason = "已跳过管理员或当前登录用户";
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("deletedCount", deletedCount);
+        result.put("skippedCount", skippedCount);
+        result.put("skippedReason", reason);
+        return Result.success(result);
     }
 
     /**

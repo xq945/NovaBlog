@@ -28,9 +28,11 @@ public interface UserService {
     /**
      * 修改当前登录用户的个人信息
      *
+     * @param username 用户名
      * @param nickname 昵称
      * @param email    邮箱
      * @param avatar   头像URL
+     * @param password 密码
      */
-    void updateProfile(String nickname, String email, String avatar);
+    void updateProfile(String username, String nickname, String email, String avatar, String password);
 }

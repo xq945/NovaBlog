@@ -9,6 +9,11 @@ import lombok.Data;
 public class UpdateProfileDTO {
 
     /**
+     * 用户名，可选，修改时必须符合规则（3-20位，字母/数字/下划线）
+     */
+    private String username;
+
+    /**
      * 昵称，必填，1-20位
      */
     private String nickname;
@@ -22,4 +27,9 @@ public class UpdateProfileDTO {
      * 头像URL，可选
      */
     private String avatar;
+
+    /**
+     * 密码，可选，修改时必须符合复杂度规则（8-20位，包含大小写字母、数字、特殊符号）
+     */
+    private String password;
 }

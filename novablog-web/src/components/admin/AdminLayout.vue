@@ -14,9 +14,7 @@ const userStore = useUserStore()
         <el-icon><ArrowLeft /></el-icon> 返回首页
       </div>
       <div class="nav-title">后台管理</div>
-      <div class="nav-user">
-        <span class="user-name">{{ userStore.userInfo?.nickname }}</span>
-      </div>
+      <div class="nav-spacer"></div>
     </nav>
 
     <!-- 主内容区 -->
@@ -67,14 +65,12 @@ const userStore = useUserStore()
   color: var(--nb-text-primary, #303133);
 }
 
-.nav-user .user-name {
-  font-size: 14px;
-  color: var(--nb-text-secondary, #606266);
+.nav-spacer {
+  width: 80px;
 }
 
 .admin-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px;
+  width: 100%;
+  padding: 0;
 }
 </style>
