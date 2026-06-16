@@ -10,6 +10,9 @@ import com.novablog.vo.ArticleVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -234,11 +237,12 @@ public class RagQueryService {
      * 调用大模型生成回答
      */
     private String generateAnswer(String question, String context, List<ChatMessageVO> history) {
-        String systemPrompt = buildSystemPrompt(context, history);
+        String systemPrompt = buildSystemPrompt(context);
+        List<Message> messages = buildMessages(history, question);
         ChatClient chatClient = ChatClient.create(chatModel);
         return chatClient.prompt()
                 .system(systemPrompt)
-                .user("问题：" + question)
+                .messages(messages)
                 .call()
                 .content();
     }
@@ -247,19 +251,20 @@ public class RagQueryService {
      * 流式调用大模型生成回答
      */
     private Flux<String> generateAnswerStream(String question, String context, List<ChatMessageVO> history) {
-        String systemPrompt = buildSystemPrompt(context, history);
+        String systemPrompt = buildSystemPrompt(context);
+        List<Message> messages = buildMessages(history, question);
         ChatClient chatClient = ChatClient.create(chatModel);
         return chatClient.prompt()
                 .system(systemPrompt)
-                .user("问题：" + question)
+                .messages(messages)
                 .stream()
                 .content();
     }
 
     /**
-     * 构造系统提示词
+     * 构造系统提示词（仅包含系统指令与参考内容，不包含历史消息）
      */
-    private String buildSystemPrompt(String context, List<ChatMessageVO> history) {
+    private String buildSystemPrompt(String context) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("你是一个基于博客内容的问答助手。请严格根据下面提供的参考文章片段回答问题。\n");
         prompt.append("规则：\n");
@@ -267,20 +272,54 @@ public class RagQueryService {
         prompt.append("2. 如果参考内容不足以回答问题，请明确说明\"根据现有博客内容无法回答\"。\n");
         prompt.append("3. 回答中引用来源时使用 [1]、[2] 等标记，对应参考片段的编号。\n");
         prompt.append("4. 回答简洁、准确，优先使用中文。\n");
+        prompt.append("5. 注意结合对话历史理解用户的后续问题，保持回答连贯。\n");
+        prompt.append("\n参考内容：\n").append(context);
+        return prompt.toString();
+    }
+
+    /**
+     * 将历史消息与当前问题构建为 ChatClient 可用的 Message 列表
+     *
+     * @param history 历史消息（已排除当前问题）
+     * @param currentQuestion 当前用户问题
+     * @return 按时间排序的消息列表，最后一条为当前问题
+     */
+    private List<Message> buildMessages(List<ChatMessageVO> history, String currentQuestion) {
+        List<Message> messages = new ArrayList<>();
 
         if (history != null && !history.isEmpty()) {
-            prompt.append("\n对话历史（请结合上下文理解最新问题）：\n");
-            // 最多保留最近 6 条消息（3 轮问答），避免上下文过长
+            // 最多保留最近 6 条历史消息，并限制历史消息总 token 数
             int start = Math.max(0, history.size() - 6);
-            for (int i = start; i < history.size(); i++) {
+            int maxHistoryTokens = 1500;
+            int currentTokens = MarkdownUtils.estimateTokens("问题：" + currentQuestion);
+
+            for (int i = history.size() - 1; i >= start; i--) {
                 ChatMessageVO msg = history.get(i);
-                String roleName = "user".equals(msg.getRole()) ? "User" : "Assistant";
-                prompt.append(roleName).append("：").append(msg.getContent()).append("\n");
+                if (msg == null || msg.getContent() == null) {
+                    continue;
+                }
+
+                int msgTokens = MarkdownUtils.estimateTokens(msg.getContent());
+                if (currentTokens + msgTokens > maxHistoryTokens) {
+                    break;
+                }
+                currentTokens += msgTokens;
+
+                Message message;
+                if ("user".equals(msg.getRole())) {
+                    message = new UserMessage(msg.getContent());
+                } else if ("assistant".equals(msg.getRole())) {
+                    message = new AssistantMessage(msg.getContent());
+                } else {
+                    continue;
+                }
+                // 从最近消息开始倒序遍历，插入头部以保持时间顺序
+                messages.add(0, message);
             }
         }
 
-        prompt.append("\n参考内容：\n").append(context);
-        return prompt.toString();
+        messages.add(new UserMessage("问题：" + currentQuestion));
+        return messages;
     }
 
     /**
