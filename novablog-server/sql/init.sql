@@ -46,13 +46,6 @@ CREATE TABLE `category` (
     UNIQUE KEY `uk_category_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='分类表';
 
--- 初始化分类数据（不指定id，让自增分配）
-INSERT INTO `category` (`name`, `description`) VALUES
-('技术', '编程、架构、工具'),
-('生活', '日常、随笔、感悟'),
-('设计', 'UI/UX、视觉、创意'),
-('读书笔记', '阅读、学习、思考');
-
 -- 3. 标签表
 DROP TABLE IF EXISTS `tag`;
 CREATE TABLE `tag` (
@@ -63,19 +56,6 @@ CREATE TABLE `tag` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_tag_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签表';
-
--- 初始化常用标签
-INSERT INTO `tag` (`name`) VALUES
-('Java'),
-('SpringBoot'),
-('Vue'),
-('JavaScript'),
-('MySQL'),
-('Redis'),
-('Docker'),
-('Linux'),
-('设计模式'),
-('读书笔记');
 
 -- 4. 文章表
 DROP TABLE IF EXISTS `article`;
