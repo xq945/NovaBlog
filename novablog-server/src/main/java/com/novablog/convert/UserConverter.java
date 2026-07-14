@@ -1,6 +1,6 @@
-package com.novablog.service.converter;
+package com.novablog.convert;
 
-import com.novablog.dto.UserDTO;
+import com.novablog.dto.response.UserDTO;
 import com.novablog.entity.User;
 import com.novablog.vo.UserVO;
 

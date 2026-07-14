@@ -3,7 +3,7 @@ package com.novablog.controller;
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
 import com.novablog.common.annotation.RequireAdmin;
-import com.novablog.dto.CommentDTO;
+import com.novablog.dto.request.CommentDTO;
 import com.novablog.service.CommentService;
 import com.novablog.vo.AdminCommentVO;
 import com.novablog.vo.CommentVO;

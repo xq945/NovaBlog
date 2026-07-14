@@ -2,7 +2,7 @@ package com.novablog.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.novablog.common.PageResult;
-import com.novablog.dto.CommentDTO;
+import com.novablog.dto.request.CommentDTO;
 import com.novablog.entity.Comment;
 import com.novablog.vo.AdminCommentVO;
 import com.novablog.vo.CommentVO;

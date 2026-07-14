@@ -2,8 +2,8 @@ package com.novablog.controller;
 
 import com.novablog.common.Result;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.LoginDTO;
-import com.novablog.dto.RegisterDTO;
+import com.novablog.dto.request.LoginDTO;
+import com.novablog.dto.request.RegisterDTO;
 import com.novablog.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

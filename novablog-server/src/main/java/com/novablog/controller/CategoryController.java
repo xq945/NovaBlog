@@ -3,7 +3,7 @@ package com.novablog.controller;
 import com.novablog.common.Result;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.CategoryDTO;
+import com.novablog.dto.request.CategoryDTO;
 import com.novablog.entity.Category;
 import com.novablog.service.CategoryService;
 import lombok.RequiredArgsConstructor;

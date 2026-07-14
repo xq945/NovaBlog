@@ -1,7 +1,7 @@
 package com.novablog.service;
 
-import com.novablog.dto.LoginDTO;
-import com.novablog.dto.RegisterDTO;
+import com.novablog.dto.request.LoginDTO;
+import com.novablog.dto.request.RegisterDTO;
 
 import java.util.Map;
 

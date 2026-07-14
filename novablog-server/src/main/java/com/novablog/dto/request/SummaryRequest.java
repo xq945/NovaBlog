@@ -1,4 +1,4 @@
-package com.novablog.dto;
+package com.novablog.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

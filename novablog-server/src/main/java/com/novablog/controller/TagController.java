@@ -3,7 +3,7 @@ package com.novablog.controller;
 import com.novablog.common.Result;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.TagDTO;
+import com.novablog.dto.request.TagDTO;
 import com.novablog.entity.Tag;
 import com.novablog.service.TagService;
 import lombok.RequiredArgsConstructor;
