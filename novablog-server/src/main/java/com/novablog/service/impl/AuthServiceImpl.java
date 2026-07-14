@@ -6,17 +6,24 @@ import com.novablog.common.annotation.AutoFillTime;
 import com.novablog.common.constant.RoleConstant;
 import com.novablog.common.enums.OperationType;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.LoginDTO;
-import com.novablog.dto.RegisterDTO;
+import com.novablog.dto.request.LoginDTO;
+import com.novablog.dto.request.RegisterDTO;
+import com.novablog.entity.LoginLog;
 import com.novablog.entity.User;
+import com.novablog.entity.UserRole;
+import com.novablog.mapper.LoginLogMapper;
+import com.novablog.mapper.RoleMapper;
 import com.novablog.mapper.UserMapper;
+import com.novablog.mapper.UserRoleMapper;
 import com.novablog.security.JwtTokenProvider;
 import com.novablog.service.AuthService;
 import com.novablog.util.RedisUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +38,9 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final RedisUtil redisUtil;
+    private final RoleMapper roleMapper;
+    private final LoginLogMapper loginLogMapper;
+    private final UserRoleMapper userRoleMapper;
 
     private static final Pattern PASSWORD_PATTERN = Pattern.compile(
             "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?]).{8,20}$"
@@ -42,24 +52,30 @@ public class AuthServiceImpl implements AuthService {
         String password = loginDTO.getPassword();
 
         if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
+            recordLoginLog(username, null, false, "用户名和密码不能为空");
             throw new BusinessException("用户名和密码不能为空");
         }
 
         User user = userMapper.selectOne(
             new LambdaQueryWrapper<User>().eq(User::getUsername, username));
         if (user == null) {
+            recordLoginLog(username, null, false, "用户名或密码错误");
             throw new BusinessException("用户名或密码错误");
         }
 
         if (user.getStatus() == null || user.getStatus() == 0) {
+            recordLoginLog(username, user.getId(), false, "用户已被禁用");
             throw new BusinessException("用户已被禁用");
         }
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
+            recordLoginLog(username, user.getId(), false, "用户名或密码错误");
             throw new BusinessException("用户名或密码错误");
         }
 
-        return buildLoginResult(user);
+        Map<String, Object> result = buildLoginResult(user);
+        recordLoginLog(username, user.getId(), true, null);
+        return result;
     }
 
     @Override
@@ -98,6 +114,17 @@ public class AuthServiceImpl implements AuthService {
 
         userMapper.insert(user);
 
+        // 为新用户分配 USER 角色
+        roleMapper.selectList(
+            new LambdaQueryWrapper<com.novablog.entity.Role>()
+                .eq(com.novablog.entity.Role::getName, RoleConstant.USER))
+            .forEach(role -> {
+                UserRole ur = new UserRole();
+                ur.setUserId(user.getId());
+                ur.setRoleId(role.getId());
+                userRoleMapper.insert(ur);
+            });
+
         return buildLoginResult(user);
     }
 
@@ -121,8 +148,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(401, "用户不存在或已被禁用");
         }
 
-        List<String> roles = List.of("ROLE_" + user.getRole());
-        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUsername(), roles);
+        List<String> authorities = buildAuthorities(userId);
+        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUsername(), authorities);
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", newAccessToken);
@@ -169,12 +196,13 @@ public class AuthServiceImpl implements AuthService {
         result.put("avatar", user.getAvatar());
         result.put("email", user.getEmail());
         result.put("role", user.getRole());
+        result.put("roles", roleMapper.findRoleNamesByUserId(userId));
         return result;
     }
 
     private Map<String, Object> buildLoginResult(User user) {
-        List<String> roles = List.of("ROLE_" + user.getRole());
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), roles);
+        List<String> authorities = buildAuthorities(user.getId());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), authorities);
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         Map<String, Object> userInfo = new HashMap<>();
@@ -184,6 +212,7 @@ public class AuthServiceImpl implements AuthService {
         userInfo.put("avatar", user.getAvatar());
         userInfo.put("email", user.getEmail());
         userInfo.put("role", user.getRole());
+        userInfo.put("roles", roleMapper.findRoleNamesByUserId(user.getId()));
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", accessToken);
@@ -191,5 +220,49 @@ public class AuthServiceImpl implements AuthService {
         result.put("expiresIn", 7200);
         result.put("userInfo", userInfo);
         return result;
+    }
+
+    /**
+     * 从 RBAC 表加载用户的角色和权限列表，用于构建 JWT 中的 authorities。
+     */
+    private List<String> buildAuthorities(Long userId) {
+        List<String> roleNames = roleMapper.findRoleNamesByUserId(userId);
+        List<String> permissions = roleMapper.findPermissionNamesByUserId(userId);
+        List<String> authorities = new ArrayList<>();
+        roleNames.forEach(role -> authorities.add("ROLE_" + role));
+        authorities.addAll(permissions);
+        return authorities;
+    }
+
+    /**
+     * 记录登录日志
+     */
+    private void recordLoginLog(String username, Long userId, boolean success, String reason) {
+        LoginLog log = new LoginLog();
+        log.setUsername(username);
+        log.setUserId(userId);
+        log.setSuccess(success ? 1 : 0);
+        log.setReason(reason != null ? reason : "");
+
+        // 从请求上下文获取 IP
+        try {
+            HttpServletRequest request = ((HttpServletRequest)
+                org.springframework.web.context.request.RequestContextHolder
+                    .currentRequestAttributes()
+                    .resolveReference(org.springframework.web.context.request.RequestAttributes.REFERENCE_REQUEST));
+            if (request != null) {
+                String ip = request.getHeader("X-Forwarded-For");
+                if (ip == null || ip.isEmpty()) {
+                    ip = request.getRemoteAddr();
+                }
+                log.setIp(ip);
+                String ua = request.getHeader("User-Agent");
+                log.setUserAgent(ua != null && ua.length() > 500 ? ua.substring(0, 500) : ua);
+            }
+        } catch (Exception ignored) {
+            // 非 HTTP 上下文（如测试）忽略
+        }
+
+        loginLogMapper.insert(log);
     }
 }

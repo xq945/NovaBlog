@@ -8,29 +8,15 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("user")
-public class User {
+@TableName("permission")
+public class Permission {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String username;
+    private String name;
 
-    private String password;
-
-    private String nickname;
-
-    private String avatar;
-
-    private String email;
-
-    private String bio;
-
-    private String role;
-
-    private Integer status;
-
-    private Integer muted;
+    private String description;
 
     private LocalDateTime createTime;
 

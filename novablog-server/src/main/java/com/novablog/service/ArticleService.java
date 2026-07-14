@@ -2,7 +2,7 @@ package com.novablog.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.novablog.common.PageResult;
-import com.novablog.dto.ArticleDTO;
+import com.novablog.dto.request.ArticleDTO;
 import com.novablog.entity.Article;
 import com.novablog.vo.ArticleDetailVO;
 import com.novablog.vo.ArticleVO;

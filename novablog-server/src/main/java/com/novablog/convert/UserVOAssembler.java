@@ -1,4 +1,4 @@
-package com.novablog.service.assembler;
+package com.novablog.convert;
 
 import com.novablog.entity.User;
 import com.novablog.vo.AdminUserVO;

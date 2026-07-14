@@ -2,6 +2,7 @@ package com.novablog.security;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.novablog.entity.User;
+import com.novablog.mapper.RoleMapper;
 import com.novablog.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -9,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -16,6 +18,7 @@ import java.util.List;
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserMapper userMapper;
+    private final RoleMapper roleMapper;
 
     @Override
     public UserDetails loadUserByUsername(String username)
@@ -25,8 +28,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         if (user == null) {
             throw new UsernameNotFoundException("用户不存在");
         }
-        List<String> roles = resolveRoles(user);
-        return new SecurityUserDetails(user, roles);
+        return buildUserDetails(user);
     }
 
     public UserDetails loadUserByUserId(Long userId) {
@@ -34,15 +36,21 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         if (user == null) {
             throw new UsernameNotFoundException("用户不存在");
         }
-        List<String> roles = resolveRoles(user);
-        return new SecurityUserDetails(user, roles);
+        return buildUserDetails(user);
     }
 
     /**
-     * 解析用户角色。第一阶段临时方案：直接读取 user.role 字段。
-     * TODO [第二阶段] RBAC 五表建成后，改为通过 RoleMapper 查询角色列表。
+     * 从 RBAC 表查询角色和权限，构建 UserDetails。
+     * 角色名称转 ROLE_ 前缀供 Spring Security 使用，权限标识直接添加。
      */
-    private List<String> resolveRoles(User user) {
-        return List.of("ROLE_" + user.getRole());
+    private UserDetails buildUserDetails(User user) {
+        List<String> roleNames = roleMapper.findRoleNamesByUserId(user.getId());
+        List<String> permissions = roleMapper.findPermissionNamesByUserId(user.getId());
+
+        List<String> authorities = new ArrayList<>();
+        roleNames.forEach(role -> authorities.add("ROLE_" + role));
+        authorities.addAll(permissions);
+
+        return new SecurityUserDetails(user, authorities);
     }
 }

@@ -2,10 +2,11 @@ package com.novablog.controller;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
+import com.novablog.common.annotation.LogOperation;
 import com.novablog.common.annotation.RequireAdmin;
-import com.novablog.dto.ArticleDTO;
-import com.novablog.dto.ArticleImportResult;
-import com.novablog.dto.SummaryRequest;
+import com.novablog.dto.request.ArticleDTO;
+import com.novablog.dto.response.ArticleImportResult;
+import com.novablog.dto.request.SummaryRequest;
 import com.novablog.service.AiSummaryService;
 import com.novablog.service.ArticleImportService;
 import com.novablog.service.ArticleService;
@@ -41,6 +42,7 @@ public class ArticleController {
      * @return 文章ID
      */
     @PostMapping
+    @LogOperation(target = "ARTICLE", operation = "CREATE", detail = "发布文章：{0}")
     public Result<Long> publish(@RequestBody ArticleDTO articleDTO) {
         Long articleId = articleService.publish(articleDTO);
         return Result.success(articleId);
@@ -108,6 +110,7 @@ public class ArticleController {
      * @return 成功结果
      */
     @PutMapping
+    @LogOperation(target = "ARTICLE", operation = "UPDATE", detail = "修改文章ID：{0}")
     public Result<Void> update(@RequestBody ArticleDTO articleDTO) {
         articleService.update(articleDTO);
         return Result.success();
@@ -120,6 +123,7 @@ public class ArticleController {
      * @return 成功结果
      */
     @DeleteMapping("/{id}")
+    @LogOperation(target = "ARTICLE", operation = "DELETE", detail = "删除文章ID：{0}")
     public Result<Void> delete(@PathVariable Long id) {
         articleService.delete(id);
         return Result.success();

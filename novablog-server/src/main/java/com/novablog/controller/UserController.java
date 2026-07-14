@@ -3,23 +3,27 @@ package com.novablog.controller;
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
 import com.novablog.common.UserContext;
+import com.novablog.common.annotation.LogOperation;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.LoginDTO;
-import com.novablog.dto.RegisterDTO;
-import com.novablog.dto.UpdateProfileDTO;
-import com.novablog.dto.UserStatusDTO;
+import com.novablog.dto.request.LoginDTO;
+import com.novablog.dto.request.RegisterDTO;
+import com.novablog.dto.request.UpdateProfileDTO;
+import com.novablog.dto.request.UserStatusDTO;
 import com.novablog.entity.User;
+import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.ArticleService;
 import com.novablog.service.AuthService;
 import com.novablog.service.UserService;
-import com.novablog.service.assembler.UserVOAssembler;
+import com.novablog.convert.UserVOAssembler;
 import com.novablog.vo.AdminUserVO;
 import com.novablog.vo.ArticleVO;
+import com.novablog.vo.UserProfileVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,6 +53,7 @@ public class UserController {
     private final AuthService authService;
     private final UserMapper userMapper;
     private final ArticleService articleService;
+    private final ArticleMapper articleMapper;
 
     /**
      * 用户注册，委托给 AuthService
@@ -164,6 +169,7 @@ public class UserController {
      */
     @DeleteMapping("/admin/batch")
     @RequireAdmin
+    @LogOperation(target = "USER", operation = "DELETE")
     public Result<Map<String, Object>> batchDelete(@RequestBody List<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             throw new BusinessException("请选择要删除的用户");
@@ -238,6 +244,7 @@ public class UserController {
      */
     @PutMapping("/admin/status")
     @RequireAdmin
+    @LogOperation(target = "USER", operation = "UPDATE", detail = "修改用户状态：{0}")
     public Result<Void> updateStatus(@RequestBody UserStatusDTO dto) {
         if (dto.getStatus() == null || (dto.getStatus() != 0 && dto.getStatus() != 1)) {
             throw new BusinessException("状态值只能为 0 或 1");
@@ -251,5 +258,39 @@ public class UserController {
         }
         userMapper.updateStatus(dto.getUserId(), dto.getStatus());
         return Result.success();
+    }
+
+    /**
+     * 用户公开主页
+     *
+     * @param id 用户ID
+     * @return 用户公开信息
+     */
+    @GetMapping("/{id}")
+    public Result<UserProfileVO> userProfile(@PathVariable Long id) {
+        return Result.success(userService.getUserProfile(id));
+    }
+
+    /**
+     * 用户公开文章列表
+     *
+     * @param id   用户ID
+     * @param page 页码
+     * @param size 每页数量
+     * @return 文章分页结果
+     */
+    @GetMapping("/{id}/articles")
+    public Result<PageResult<ArticleVO>> userArticles(
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer size) {
+        if (page == null || page < 1) page = 1;
+        if (size == null || size < 1) size = 10;
+        if (size > 50) size = 50;
+        int offset = (page - 1) * size;
+
+        List<ArticleVO> articles = articleMapper.findByUserId(id, offset, size);
+        Long total = articleMapper.countByUserId(id);
+        return Result.success(new PageResult<>(total, articles));
     }
 }

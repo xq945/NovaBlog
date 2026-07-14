@@ -42,7 +42,7 @@
     </delete>
 
     <!-- 根据文章ID列表批量查询标签关联 -->
-    <select id="findRelationsByArticleIds" resultType="com.novablog.dto.ArticleTagDTO">
+    <select id="findRelationsByArticleIds" resultType="com.novablog.dto.request.ArticleTagDTO">
         SELECT at.article_id as articleId, t.id as tagId, t.name as tagName
         FROM article_tag at
         INNER JOIN tag t ON at.tag_id = t.id

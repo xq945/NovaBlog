@@ -6,7 +6,7 @@ import com.novablog.common.PageResult;
 import com.novablog.common.UserContext;
 import com.novablog.common.constant.RoleConstant;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.CommentDTO;
+import com.novablog.dto.request.CommentDTO;
 import com.novablog.entity.Article;
 import com.novablog.entity.Comment;
 import com.novablog.entity.User;

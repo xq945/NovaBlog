@@ -1,4 +1,4 @@
-package com.novablog.dto;
+package com.novablog.dto.response;
 
 import lombok.Data;
 

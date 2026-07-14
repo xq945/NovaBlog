@@ -2,7 +2,7 @@ package com.novablog.service;
 
 import com.novablog.common.exception.BusinessException;
 import com.novablog.config.AiProperties;
-import com.novablog.dto.ArticleImportResult;
+import com.novablog.dto.response.ArticleImportResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;

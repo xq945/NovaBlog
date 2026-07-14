@@ -1,9 +1,10 @@
 package com.novablog.controller;
 
 import com.novablog.common.Result;
+import com.novablog.common.annotation.LogOperation;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.CategoryDTO;
+import com.novablog.dto.request.CategoryDTO;
 import com.novablog.entity.Category;
 import com.novablog.service.CategoryService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class CategoryController {
      */
     @PostMapping
     @RequireAdmin
+    @LogOperation(target = "CATEGORY", operation = "CREATE")
     public Result<Long> create(@RequestBody CategoryDTO dto) {
         if (dto.getName() == null || dto.getName().isEmpty() || dto.getName().length() > 20) {
             throw new BusinessException("分类名称长度必须为1-20位");
@@ -55,6 +57,7 @@ public class CategoryController {
      */
     @PutMapping
     @RequireAdmin
+    @LogOperation(target = "CATEGORY", operation = "UPDATE")
     public Result<Void> update(@RequestBody CategoryDTO dto) {
         if (dto.getId() == null) {
             throw new BusinessException("分类ID不能为空");
@@ -74,6 +77,7 @@ public class CategoryController {
      */
     @DeleteMapping("/{id}")
     @RequireAdmin
+    @LogOperation(target = "CATEGORY", operation = "DELETE", detail = "删除分类ID：{0}")
     public Result<Void> delete(@PathVariable Long id) {
         categoryService.delete(id);
         return Result.success();

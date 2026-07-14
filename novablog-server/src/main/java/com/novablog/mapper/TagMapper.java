@@ -1,7 +1,7 @@
 package com.novablog.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.novablog.dto.ArticleTagDTO;
+import com.novablog.dto.request.ArticleTagDTO;
 import com.novablog.entity.Tag;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
