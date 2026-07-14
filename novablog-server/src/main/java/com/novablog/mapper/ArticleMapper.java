@@ -44,6 +44,11 @@ public interface ArticleMapper extends BaseMapper<Article> {
     int batchUpdateLikeCount(@Param("articleIdList") List<Long> articleIdList,
                               @Param("likeCountList") List<Long> likeCountList);
 
+    /**
+     * 从 article_like 表 COUNT 并更新所有文章的点赞数（定时任务用）
+     */
+    int updateLikeCountFromTable();
+
     Long countByIndexedStatus(@Param("indexed") Integer indexed);
 
     List<Article> findByIndexedStatus(@Param("indexed") Integer indexed);

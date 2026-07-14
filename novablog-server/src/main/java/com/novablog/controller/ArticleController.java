@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 文章控制器
@@ -136,21 +137,19 @@ public class ArticleController {
      * @return 成功结果
      */
     @PostMapping("/like/{id}")
-    public Result<Void> like(@PathVariable Long id) {
-        articleService.like(id);
-        return Result.success();
+    public Result<Map<String, Object>> like(@PathVariable Long id) {
+        return Result.success(articleService.like(id));
     }
 
     /**
      * 取消点赞
      *
      * @param id 文章ID
-     * @return 成功结果
+     * @return 点赞状态
      */
     @DeleteMapping("/like/{id}")
-    public Result<Void> unlike(@PathVariable Long id) {
-        articleService.unlike(id);
-        return Result.success();
+    public Result<Map<String, Object>> unlike(@PathVariable Long id) {
+        return Result.success(articleService.unlike(id));
     }
 
     /**

@@ -22,9 +22,22 @@ public final class RedisKeyConstant {
     public static final String ARTICLE_VIEW = PREFIX + "article:view:";
 
     /**
-     * 文章点赞用户集合 Key
+     * 文章点赞计数 Key（String）
+     * 格式：blog:article:like:count:{articleId}
+     */
+    public static final String ARTICLE_LIKE_COUNT = PREFIX + "article:like:count:";
+
+    /**
+     * 用户点赞状态 Key（String，值为 "1" 表示已赞）
+     * 格式：blog:article:like:user:{userId}:{articleId}
+     */
+    public static final String ARTICLE_LIKE_USER_PREFIX = PREFIX + "article:like:user:";
+
+    /**
+     * 文章点赞用户集合 Key（旧版 Set，逐步淘汰）
      * 格式：blog:article:like:{articleId}
      */
+    @Deprecated
     public static final String ARTICLE_LIKE = PREFIX + "article:like:";
 
     /**
@@ -54,13 +67,35 @@ public final class RedisKeyConstant {
     }
 
     /**
-     * 构建文章点赞用户集合 Key
+     * 构建文章点赞用户集合 Key（旧版 Set）
      *
      * @param articleId 文章ID
      * @return 完整 Redis Key
      */
+    @Deprecated
     public static String articleLike(Long articleId) {
         return ARTICLE_LIKE + articleId;
+    }
+
+    /**
+     * 构建文章点赞计数 Key
+     *
+     * @param articleId 文章ID
+     * @return 完整 Redis Key
+     */
+    public static String articleLikeCount(Long articleId) {
+        return ARTICLE_LIKE_COUNT + articleId;
+    }
+
+    /**
+     * 构建用户点赞状态 Key
+     *
+     * @param userId    用户ID
+     * @param articleId 文章ID
+     * @return 完整 Redis Key
+     */
+    public static String articleLikeUser(Long userId, Long articleId) {
+        return ARTICLE_LIKE_USER_PREFIX + userId + ":" + articleId;
     }
 
     /**

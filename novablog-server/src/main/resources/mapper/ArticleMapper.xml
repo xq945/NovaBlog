@@ -197,6 +197,17 @@
         </foreach>
     </update>
 
+    <!-- 从 article_like 表 COUNT 并更新所有文章的点赞数（定时任务用） -->
+    <update id="updateLikeCountFromTable">
+        UPDATE article a
+        LEFT JOIN (
+            SELECT article_id, COUNT(*) AS cnt
+            FROM article_like
+            GROUP BY article_id
+        ) t ON a.id = t.article_id
+        SET a.like_count = COALESCE(t.cnt, 0)
+    </update>
+
     <!-- 批量更新点赞数（定时任务同步用，CASE WHEN 批量更新效率更高） -->
     <update id="batchUpdateLikeCount">
         UPDATE article

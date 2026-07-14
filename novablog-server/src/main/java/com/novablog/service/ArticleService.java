@@ -10,6 +10,7 @@ import com.novablog.vo.HotArticleVO;
 import com.novablog.vo.LikeStatusVO;
 
 import java.util.List;
+import java.util.Map;
 
 public interface ArticleService extends IService<Article> {
 
@@ -25,9 +26,9 @@ public interface ArticleService extends IService<Article> {
 
     PageResult<ArticleVO> findMyArticles(Integer page, Integer size);
 
-    void like(Long articleId);
+    Map<String, Object> like(Long articleId);
 
-    void unlike(Long articleId);
+    Map<String, Object> unlike(Long articleId);
 
     LikeStatusVO getLikeStatus(Long articleId);
 

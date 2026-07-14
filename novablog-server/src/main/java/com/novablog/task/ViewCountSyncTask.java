@@ -16,7 +16,7 @@ import java.util.UUID;
 
 /**
  * 文章统计数据同步定时任务
- * 每小时将 Redis 中的浏览量、点赞数同步回 MySQL，保证持久化
+ * 每小时将 Redis 浏览量和 article_like 中的点赞数同步回 MySQL
  */
 @Component
 @RequiredArgsConstructor
@@ -32,7 +32,7 @@ public class ViewCountSyncTask {
     private static final Duration LOCK_TIMEOUT = Duration.ofMinutes(10);
 
     /**
-     * 每小时执行一次，将 Redis 浏览量、点赞数同步到 MySQL
+     * 每小时执行一次，将 Redis 浏览量、article_like 点赞数同步到 MySQL
      * 使用 Redis 分布式锁防止多实例重复执行
      */
     @Scheduled(cron = "0 0 * * * *")
@@ -102,47 +102,15 @@ public class ViewCountSyncTask {
     }
 
     /**
-     * 同步点赞数
+     * 同步点赞数——直接从 article_like 表 COUNT 更新 article.like_count
+     * 替代原先扫描 Redis Set 的方式，保证点赞明细持久化后计数准确
      */
     private void syncLikeCount() {
-        Set<String> keys = redisUtil.scan(RedisKeyConstant.ARTICLE_LIKE + "*");
-        if (keys == null || keys.isEmpty()) {
-            log.info("点赞数同步：Redis 中没有数据，跳过");
-            return;
-        }
-
-        List<Long> articleIdList = new ArrayList<>();
-        List<Long> likeCountList = new ArrayList<>();
-        int skipCount = 0;
-
-        for (String key : keys) {
-            try {
-                String articleIdStr = key.substring(key.lastIndexOf(":") + 1);
-                Long articleId = Long.parseLong(articleIdStr);
-                Long likeCount = redisUtil.sCard(key);
-                if (likeCount != null) {
-                    articleIdList.add(articleId);
-                    likeCountList.add(likeCount);
-                } else {
-                    skipCount++;
-                }
-            } catch (Exception e) {
-                skipCount++;
-                log.error("读取 Redis 点赞数失败, key={}", key, e);
-            }
-        }
-
-        if (articleIdList.isEmpty()) {
-            log.info("点赞数同步：无有效数据需要同步，跳过 {} 条", skipCount);
-            return;
-        }
-
         try {
-            int updated = articleMapper.batchUpdateLikeCount(articleIdList, likeCountList);
-            log.info("点赞数同步完成, 批量更新 {} 条, 跳过 {} 条", updated, skipCount);
+            int updated = articleMapper.updateLikeCountFromTable();
+            log.info("点赞数同步完成, 更新 {} 篇文章", updated);
         } catch (Exception e) {
-            log.error("批量同步点赞数失败, 数据量={}", articleIdList.size(), e);
-            fallbackUpdateLikeCount(articleIdList, likeCountList);
+            log.error("从 article_like 表同步点赞数失败", e);
         }
     }
 
@@ -162,24 +130,6 @@ public class ViewCountSyncTask {
             }
         }
         log.info("浏览量降级逐条同步完成, 成功 {} 条, 失败 {} 条", successCount, failCount);
-    }
-
-    /**
-     * 点赞数降级逐条更新
-     */
-    private void fallbackUpdateLikeCount(List<Long> articleIdList, List<Long> likeCountList) {
-        int successCount = 0;
-        int failCount = 0;
-        for (int i = 0; i < articleIdList.size(); i++) {
-            try {
-                articleMapper.updateLikeCount(articleIdList.get(i), likeCountList.get(i));
-                successCount++;
-            } catch (Exception ex) {
-                failCount++;
-                log.error("逐条同步点赞数失败, articleId={}", articleIdList.get(i), ex);
-            }
-        }
-        log.info("点赞数降级逐条同步完成, 成功 {} 条, 失败 {} 条", successCount, failCount);
     }
 
     /**

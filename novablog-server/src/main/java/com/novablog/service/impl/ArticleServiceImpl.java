@@ -10,9 +10,12 @@ import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.request.ArticleDTO;
 import com.novablog.dto.request.ArticleTagDTO;
 import com.novablog.entity.Article;
+import com.novablog.entity.ArticleLike;
 import com.novablog.entity.Category;
 import com.novablog.entity.Tag;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.novablog.mapper.ArticleLikeMapper;
 import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.ArticleTagMapper;
 import com.novablog.mapper.CategoryMapper;
@@ -53,6 +56,7 @@ import java.util.stream.Collectors;
 public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> implements ArticleService {
 
     private final ArticleMapper articleMapper;
+    private final ArticleLikeMapper articleLikeMapper;
     private final ArticleTagMapper articleTagMapper;
     private final TagMapper tagMapper;
     private final CategoryMapper categoryMapper;
@@ -363,7 +367,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
 
         // 5. 清理 Redis
         articleStatsComponent.deleteViewCount(id);
-        articleStatsComponent.deleteLikeSet(id);
+        articleStatsComponent.deleteLikeCount(id);
         articleStatsComponent.removeFromHot(id);
 
         // 6. 清理向量索引
@@ -416,7 +420,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     }
 
     @Override
-    public void like(Long articleId) {
+    public Map<String, Object> like(Long articleId) {
         // 1. 参数校验
         if (articleId == null || articleId <= 0) {
             throw new BusinessException(400, "文章ID不能为空");
@@ -437,32 +441,44 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             throw new BusinessException(401, "请先登录");
         }
 
-        // 4. Redis 点赞（原子操作，防重复点赞）
-        if (!articleStatsComponent.like(articleId, userId)) {
+        // 4. 校验是否已点赞（应用层校验，唯一索引兜底防并发）
+        Long existing = articleLikeMapper.selectCount(
+                new LambdaQueryWrapper<ArticleLike>()
+                        .eq(ArticleLike::getUserId, userId)
+                        .eq(ArticleLike::getArticleId, articleId));
+        if (existing != null && existing > 0) {
             throw new BusinessException(409, "已点赞");
         }
 
-        // 5. 更新 MySQL like_count（失败不影响 Redis 结果，后续定时任务补偿）
+        // 5. 写 MySQL article_like 表
+        ArticleLike articleLike = new ArticleLike();
+        articleLike.setUserId(userId);
+        articleLike.setArticleId(articleId);
         try {
-            articleMapper.update(new Article() {{
-                setId(articleId);
-                setLikeCount((article.getLikeCount() != null ? article.getLikeCount() : 0L) + 1);
-            }});
-        } catch (Exception e) {
-            log.warn("点赞后更新 MySQL like_count 失败, articleId={}, 将由定时任务补偿", articleId, e);
+            articleLikeMapper.insert(articleLike);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BusinessException(409, "已点赞");
         }
 
-        // 6. 更新热门排行 ZSet
+        // 6. 刷新 Redis 缓存
+        Long count = articleLikeMapper.selectCount(
+                new LambdaQueryWrapper<ArticleLike>()
+                        .eq(ArticleLike::getArticleId, articleId));
+        articleStatsComponent.setLikeCount(articleId, count != null ? count : 0L);
+        articleStatsComponent.markLiked(articleId, userId);
+
+        // 7. 更新 MySQL article.like_count
+        articleMapper.updateLikeCount(articleId, count != null ? count : 0L);
+
+        // 8. 更新热门排行 ZSet
         Long viewCount = getViewCountFromRedisOrDb(articleId);
-        Long likeCount = articleStatsComponent.getLikeCount(articleId);
-        if (likeCount == null) {
-            likeCount = getLikeCountFromRedisOrDb(articleId);
-        }
-        articleStatsComponent.updateHotScore(articleId, viewCount, likeCount);
+        articleStatsComponent.updateHotScore(articleId, viewCount, count != null ? count : 0L);
+
+        return Map.of("liked", true, "likeCount", count != null ? count : 0L);
     }
 
     @Override
-    public void unlike(Long articleId) {
+    public Map<String, Object> unlike(Long articleId) {
         // 1. 参数校验
         if (articleId == null || articleId <= 0) {
             throw new BusinessException(400, "文章ID不能为空");
@@ -474,37 +490,38 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             throw new BusinessException(401, "请先登录");
         }
 
-        // 3. Redis 取消点赞
-        if (!articleStatsComponent.unlike(articleId, userId)) {
+        // 3. 检查 MySQL 中是否存在点赞记录
+        ArticleLike existing = articleLikeMapper.selectOne(
+                new LambdaQueryWrapper<ArticleLike>()
+                        .eq(ArticleLike::getUserId, userId)
+                        .eq(ArticleLike::getArticleId, articleId));
+        if (existing == null) {
             throw new BusinessException(404, "未点赞");
         }
 
-        // 4. 更新 MySQL like_count（失败不影响 Redis 结果，后续定时任务补偿）
-        Article article = articleMapper.findById(articleId);
-        if (article != null && article.getLikeCount() != null && article.getLikeCount() > 0) {
-            try {
-                articleMapper.update(new Article() {{
-                    setId(articleId);
-                    setLikeCount(article.getLikeCount() - 1);
-                }});
-            } catch (Exception e) {
-                log.warn("取消点赞后更新 MySQL like_count 失败, articleId={}, 将由定时任务补偿", articleId, e);
-            }
+        // 4. 删除 MySQL 记录
+        articleLikeMapper.deleteById(existing.getId());
+
+        // 5. 刷新 Redis 缓存
+        Long count = articleLikeMapper.selectCount(
+                new LambdaQueryWrapper<ArticleLike>()
+                        .eq(ArticleLike::getArticleId, articleId));
+        articleStatsComponent.setLikeCount(articleId, count != null ? count : 0L);
+        articleStatsComponent.markUnliked(articleId, userId);
+
+        // 6. 更新 MySQL article.like_count
+        articleMapper.updateLikeCount(articleId, count != null ? count : 0L);
+
+        // 7. 更新热门排行 ZSet
+        Long viewCount = getViewCountFromRedisOrDb(articleId);
+        long safeCount = count != null ? count : 0L;
+        if (safeCount == 0 && (viewCount == null || viewCount == 0)) {
+            articleStatsComponent.removeFromHot(articleId);
+        } else {
+            articleStatsComponent.updateHotScore(articleId, viewCount != null ? viewCount : 0L, safeCount);
         }
 
-        // 5. 更新热门排行 ZSet
-        Long viewCount = getViewCountFromRedisOrDb(articleId);
-        Long likeCount = articleStatsComponent.getLikeCount(articleId);
-        if (likeCount == null || likeCount == 0) {
-            // 点赞数为 0 且浏览量也为 0，从 ZSet 移除
-            if (viewCount == 0) {
-                articleStatsComponent.removeFromHot(articleId);
-            } else {
-                articleStatsComponent.updateHotScore(articleId, viewCount, 0L);
-            }
-        } else {
-            articleStatsComponent.updateHotScore(articleId, viewCount, likeCount);
-        }
+        return Map.of("liked", false, "likeCount", safeCount);
     }
 
     @Override
@@ -523,23 +540,44 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             throw new BusinessException(400, "草稿文章禁止操作");
         }
 
-        // 3. 获取用户ID
-        Long userId = UserContext.getUserId();
-        if (userId == null) {
-            throw new BusinessException(401, "请先登录");
-        }
-
         LikeStatusVO vo = new LikeStatusVO();
 
-        // 4. 查询是否点赞
-        vo.setLiked(articleStatsComponent.isLiked(articleId, userId));
+        // 3. 查询点赞状态（Cache-Aside）
+        Long userId = UserContext.getUserId();
+        if (userId != null) {
+            boolean liked = articleStatsComponent.isLiked(articleId, userId);
+            if (liked) {
+                vo.setLiked(true);
+            } else {
+                // Redis 未命中，回查 MySQL
+                Long count = articleLikeMapper.selectCount(
+                        new LambdaQueryWrapper<ArticleLike>()
+                                .eq(ArticleLike::getUserId, userId)
+                                .eq(ArticleLike::getArticleId, articleId));
+                if (count != null && count > 0) {
+                    vo.setLiked(true);
+                    // 回填 Redis 缓存
+                    articleStatsComponent.markLiked(articleId, userId);
+                } else {
+                    vo.setLiked(false);
+                }
+            }
+        } else {
+            vo.setLiked(false);
+        }
 
-        // 5. 查询点赞总数
+        // 4. 查询点赞总数（Cache-Aside）
         Long likeCount = articleStatsComponent.getLikeCount(articleId);
         if (likeCount != null) {
             vo.setLikeCount(likeCount);
         } else {
-            vo.setLikeCount(article.getLikeCount() != null ? article.getLikeCount().longValue() : 0L);
+            // Redis 未命中，回查 MySQL 并回填缓存
+            likeCount = articleLikeMapper.selectCount(
+                    new LambdaQueryWrapper<ArticleLike>()
+                            .eq(ArticleLike::getArticleId, articleId));
+            likeCount = likeCount != null ? likeCount : 0L;
+            vo.setLikeCount(likeCount);
+            articleStatsComponent.setLikeCount(articleId, likeCount);
         }
 
         return vo;
@@ -721,15 +759,20 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     }
 
     /**
-     * 从 Redis 或 MySQL 获取点赞数（Redis 优先）
+     * 从 Redis 或 MySQL 获取点赞数（Redis 优先，降级查 article_like 表）
      */
     private Long getLikeCountFromRedisOrDb(Long articleId) {
         Long likeCount = articleStatsComponent.getLikeCount(articleId);
         if (likeCount != null) {
             return likeCount;
         }
-        Article article = articleMapper.findById(articleId);
-        return article != null && article.getLikeCount() != null ? article.getLikeCount().longValue() : 0L;
+        // 从 article_like 表 COUNT 并回填缓存
+        Long count = articleLikeMapper.selectCount(
+                new LambdaQueryWrapper<ArticleLike>()
+                        .eq(ArticleLike::getArticleId, articleId));
+        count = count != null ? count : 0L;
+        articleStatsComponent.setLikeCount(articleId, count);
+        return count;
     }
 
     /**

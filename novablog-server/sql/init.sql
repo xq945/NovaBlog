@@ -168,6 +168,19 @@ CREATE TABLE IF NOT EXISTS `favorite` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章收藏表';
 
 -- ============================================
+-- 15. 文章点赞记录表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `article_like` (
+    `id`          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `user_id`     BIGINT NOT NULL COMMENT '点赞用户ID',
+    `article_id`  BIGINT NOT NULL COMMENT '被点赞文章ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
+    UNIQUE KEY `uk_user_article` (`user_id`, `article_id`) COMMENT '同一用户对同一文章只能点赞一次',
+    KEY `idx_article_id` (`article_id`) COMMENT '按文章查询点赞记录',
+    KEY `idx_user_id` (`user_id`) COMMENT '按用户查询点赞记录'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章点赞记录表';
+
+-- ============================================
 -- 外键约束（保证数据完整性）
 -- ============================================
 -- 文章表外键
@@ -199,6 +212,11 @@ ALTER TABLE `chat_message`
 ALTER TABLE `favorite`
     ADD CONSTRAINT `fk_favorite_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
     ADD CONSTRAINT `fk_favorite_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
+
+-- 文章点赞记录表外键
+ALTER TABLE `article_like`
+    ADD CONSTRAINT `fk_like_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_like_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
 
 -- 恢复外键检查
 SET FOREIGN_KEY_CHECKS = 1;

@@ -50,6 +50,7 @@ public class SecurityConfig {
                     "/article/list",
                     "/article/*",
                     "/article/hot",
+                    "/article/like/status",
                     "/comment/list",
                     "/category/list",
                     "/tag/list",

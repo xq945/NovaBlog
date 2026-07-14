@@ -84,49 +84,18 @@ public class ArticleStatsComponent {
         }
     }
 
-    /**
-     * 用户点赞文章
-     *
-     * @param articleId 文章ID
-     * @param userId    用户ID
-     * @return true-点赞成功，false-已点赞
-     */
-    public boolean like(Long articleId, Long userId) {
-        try {
-            Long result = redisUtil.sAdd(RedisKeyConstant.articleLike(articleId), String.valueOf(userId));
-            return result != null && result > 0;
-        } catch (Exception e) {
-            log.warn("Redis 点赞失败, articleId={}, userId={}", articleId, userId, e);
-            return false;
-        }
-    }
+    // ========== 点赞相关（Cache-Aside 模式） ==========
 
     /**
-     * 用户取消点赞
+     * 获取文章点赞数（Redis 优先）
      *
      * @param articleId 文章ID
-     * @param userId    用户ID
-     * @return true-取消成功，false-未点赞
-     */
-    public boolean unlike(Long articleId, Long userId) {
-        try {
-            Long result = redisUtil.sRem(RedisKeyConstant.articleLike(articleId), String.valueOf(userId));
-            return result != null && result > 0;
-        } catch (Exception e) {
-            log.warn("Redis 取消点赞失败, articleId={}, userId={}", articleId, userId, e);
-            return false;
-        }
-    }
-
-    /**
-     * 获取文章点赞数
-     *
-     * @param articleId 文章ID
-     * @return 点赞数，失败返回 null
+     * @return 点赞数，不存在或失败返回 null
      */
     public Long getLikeCount(Long articleId) {
         try {
-            return redisUtil.sCard(RedisKeyConstant.articleLike(articleId));
+            String value = redisUtil.get(RedisKeyConstant.articleLikeCount(articleId));
+            return value != null ? Long.parseLong(value) : null;
         } catch (Exception e) {
             log.warn("从 Redis 读取点赞数失败, articleId={}", articleId, e);
             return null;
@@ -134,7 +103,21 @@ public class ArticleStatsComponent {
     }
 
     /**
-     * 判断用户是否已点赞
+     * 设置文章点赞数缓存（回填 MySQL 查询结果）
+     *
+     * @param articleId 文章ID
+     * @param count     点赞数
+     */
+    public void setLikeCount(Long articleId, Long count) {
+        try {
+            redisUtil.set(RedisKeyConstant.articleLikeCount(articleId), String.valueOf(count));
+        } catch (Exception e) {
+            log.warn("设置 Redis 点赞数失败, articleId={}", articleId, e);
+        }
+    }
+
+    /**
+     * 判断用户是否已点赞（Redis 优先）
      *
      * @param articleId 文章ID
      * @param userId    用户ID
@@ -142,8 +125,8 @@ public class ArticleStatsComponent {
      */
     public boolean isLiked(Long articleId, Long userId) {
         try {
-            Boolean liked = redisUtil.sIsMember(RedisKeyConstant.articleLike(articleId), String.valueOf(userId));
-            return liked != null && liked;
+            Boolean exists = redisUtil.hasKey(RedisKeyConstant.articleLikeUser(userId, articleId));
+            return exists != null && exists;
         } catch (Exception e) {
             log.warn("查询点赞状态失败, articleId={}, userId={}", articleId, userId, e);
             return false;
@@ -151,15 +134,43 @@ public class ArticleStatsComponent {
     }
 
     /**
-     * 删除文章点赞集合
+     * 标记用户已点赞（写 Redis 缓存）
+     *
+     * @param articleId 文章ID
+     * @param userId    用户ID
+     */
+    public void markLiked(Long articleId, Long userId) {
+        try {
+            redisUtil.set(RedisKeyConstant.articleLikeUser(userId, articleId), "1");
+        } catch (Exception e) {
+            log.warn("标记点赞状态失败, articleId={}, userId={}", articleId, userId, e);
+        }
+    }
+
+    /**
+     * 标记用户取消点赞（清除 Redis 缓存）
+     *
+     * @param articleId 文章ID
+     * @param userId    用户ID
+     */
+    public void markUnliked(Long articleId, Long userId) {
+        try {
+            redisUtil.del(RedisKeyConstant.articleLikeUser(userId, articleId));
+        } catch (Exception e) {
+            log.warn("取消标记点赞状态失败, articleId={}, userId={}", articleId, userId, e);
+        }
+    }
+
+    /**
+     * 删除文章点赞计数缓存
      *
      * @param articleId 文章ID
      */
-    public void deleteLikeSet(Long articleId) {
+    public void deleteLikeCount(Long articleId) {
         try {
-            redisUtil.del(RedisKeyConstant.articleLike(articleId));
+            redisUtil.del(RedisKeyConstant.articleLikeCount(articleId));
         } catch (Exception e) {
-            log.warn("删除 Redis 点赞集合失败, articleId={}", articleId, e);
+            log.warn("删除 Redis 点赞计数失败, articleId={}", articleId, e);
         }
     }
 
