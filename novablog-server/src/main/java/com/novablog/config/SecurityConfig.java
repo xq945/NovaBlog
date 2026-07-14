@@ -60,6 +60,8 @@ public class SecurityConfig {
                     "/webjars/**",
                     "/swagger-ui/**"
                 ).permitAll()
+                // 公开用户主页（Controller 内部自行校验权限）
+                .requestMatchers("/user/*", "/user/*/articles").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter,

@@ -1,11 +1,15 @@
 package com.novablog.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.novablog.common.UserContext;
 import com.novablog.common.exception.BusinessException;
+import com.novablog.entity.Article;
 import com.novablog.entity.User;
+import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.UserService;
+import com.novablog.vo.UserProfileVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,6 +21,7 @@ import java.util.regex.Pattern;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final UserMapper userMapper;
+    private final ArticleMapper articleMapper;
     private final PasswordEncoder passwordEncoder;
 
     private static final Pattern PASSWORD_PATTERN = Pattern.compile(
@@ -79,5 +84,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String emailToUpdate = (email == null || email.isEmpty()) ? null : email;
         String avatarToUpdate = (avatar == null || avatar.isEmpty()) ? null : avatar;
         userMapper.updateProfile(userId, usernameToUpdate, nickname, emailToUpdate, avatarToUpdate, passwordToUpdate);
+    }
+
+    @Override
+    public UserProfileVO getUserProfile(Long userId) {
+        User user = userMapper.findById(userId);
+        if (user == null || user.getStatus() == 0) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        Long articleCount = articleMapper.selectCount(
+            new LambdaQueryWrapper<Article>()
+                .eq(Article::getUserId, userId)
+                .eq(Article::getStatus, 1));
+
+        UserProfileVO vo = new UserProfileVO();
+        vo.setId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setNickname(user.getNickname());
+        vo.setAvatar(user.getAvatar());
+        vo.setBio(user.getBio());
+        vo.setArticleCount(articleCount);
+        vo.setJoinTime(user.getCreateTime());
+        return vo;
     }
 }

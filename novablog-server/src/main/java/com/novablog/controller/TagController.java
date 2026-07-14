@@ -1,6 +1,7 @@
 package com.novablog.controller;
 
 import com.novablog.common.Result;
+import com.novablog.common.annotation.LogOperation;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.dto.request.TagDTO;
@@ -39,6 +40,7 @@ public class TagController {
      */
     @PostMapping
     @RequireAdmin
+    @LogOperation(target = "TAG", operation = "CREATE")
     public Result<Long> create(@RequestBody TagDTO dto) {
         if (dto.getName() == null || dto.getName().isEmpty() || dto.getName().length() > 20) {
             throw new BusinessException("标签名称长度必须为1-20位");
@@ -55,6 +57,7 @@ public class TagController {
      */
     @PutMapping
     @RequireAdmin
+    @LogOperation(target = "TAG", operation = "UPDATE")
     public Result<Void> update(@RequestBody TagDTO dto) {
         if (dto.getId() == null) {
             throw new BusinessException("标签ID不能为空");
@@ -74,6 +77,7 @@ public class TagController {
      */
     @DeleteMapping("/{id}")
     @RequireAdmin
+    @LogOperation(target = "TAG", operation = "DELETE", detail = "删除标签ID：{0}")
     public Result<Void> delete(@PathVariable Long id) {
         tagService.delete(id);
         return Result.success();

@@ -2,6 +2,7 @@ package com.novablog.security;
 
 import com.novablog.common.UserContext;
 import com.novablog.util.RedisUtil;
+import java.util.List;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,10 +71,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 userDetails, null, userDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 设置 UserContext（兼容现有 Controller）
+        // 设置 UserContext（兼容现有 Controller，只传入角色不含权限）
+        List<String> roles = userDetails.getRoles().stream()
+            .filter(a -> a.startsWith("ROLE_"))
+            .toList();
         UserContext.set(userDetails.getUserId(),
                         userDetails.getUsername(),
-                        userDetails.getRoles());
+                        roles);
 
         chain.doFilter(request, response);
     }

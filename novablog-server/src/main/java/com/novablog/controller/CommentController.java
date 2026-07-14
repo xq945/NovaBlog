@@ -2,6 +2,7 @@ package com.novablog.controller;
 
 import com.novablog.common.PageResult;
 import com.novablog.common.Result;
+import com.novablog.common.annotation.LogOperation;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.dto.request.CommentDTO;
 import com.novablog.service.CommentService;
@@ -56,6 +57,7 @@ public class CommentController {
      * @return 成功结果
      */
     @DeleteMapping("/{id}")
+    @LogOperation(target = "COMMENT", operation = "DELETE", detail = "删除评论ID：{0}")
     public Result<Void> delete(@PathVariable Long id) {
         commentService.delete(id);
         return Result.success();

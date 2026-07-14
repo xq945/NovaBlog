@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * 管理员权限注解
  * 标注在方法上，表示只有 ADMIN 角色才能访问
  */
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RequireAdmin {
 }
