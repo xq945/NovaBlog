@@ -23,11 +23,6 @@
         SELECT * FROM tag WHERE name = #{name} LIMIT 1
     </select>
 
-    <!-- 插入新标签 -->
-    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO tag (name) VALUES (#{name})
-    </insert>
-
     <!-- 根据文章ID查询标签列表 -->
     <select id="findByArticleId" resultMap="tagResultMap">
         SELECT t.* FROM tag t
@@ -40,11 +35,6 @@
     <update id="update">
         UPDATE tag SET name = #{name} WHERE id = #{id}
     </update>
-
-    <!-- 删除标签 -->
-    <delete id="deleteById">
-        DELETE FROM tag WHERE id = #{id}
-    </delete>
 
     <!-- 删除文章标签关联 -->
     <delete id="deleteArticleTagByTagId">

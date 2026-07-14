@@ -3,6 +3,7 @@ package com.novablog.service.impl;
 import com.novablog.common.annotation.AutoFillTime;
 import com.novablog.common.enums.OperationType;
 import com.novablog.entity.Tag;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.novablog.mapper.TagMapper;
 import com.novablog.service.TagService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class TagServiceImpl implements TagService {
+public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagService {
 
     private final TagMapper tagMapper;
 

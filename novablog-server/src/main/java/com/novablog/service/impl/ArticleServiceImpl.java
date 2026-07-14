@@ -12,6 +12,7 @@ import com.novablog.dto.ArticleTagDTO;
 import com.novablog.entity.Article;
 import com.novablog.entity.Category;
 import com.novablog.entity.Tag;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.ArticleTagMapper;
 import com.novablog.mapper.CategoryMapper;
@@ -49,7 +50,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ArticleServiceImpl implements ArticleService {
+public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> implements ArticleService {
 
     private final ArticleMapper articleMapper;
     private final ArticleTagMapper articleTagMapper;

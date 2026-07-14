@@ -10,6 +10,7 @@ import com.novablog.dto.CommentDTO;
 import com.novablog.entity.Article;
 import com.novablog.entity.Comment;
 import com.novablog.entity.User;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.CommentMapper;
 import com.novablog.mapper.UserMapper;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
-public class CommentServiceImpl implements CommentService {
+public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> implements CommentService {
 
     private final CommentMapper commentMapper;
     private final UserMapper userMapper;

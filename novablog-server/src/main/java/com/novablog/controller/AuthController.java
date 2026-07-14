@@ -2,113 +2,65 @@ package com.novablog.controller;
 
 import com.novablog.common.Result;
 import com.novablog.common.exception.BusinessException;
-import com.novablog.dto.UserDTO;
-import com.novablog.entity.User;
-import com.novablog.mapper.UserMapper;
-import com.novablog.service.TokenBlacklistService;
-import com.novablog.util.JwtUtil;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtException;
+import com.novablog.dto.LoginDTO;
+import com.novablog.dto.RegisterDTO;
+import com.novablog.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 认证控制器
- * 处理 Token 刷新等认证相关请求
- * 该接口不走 JWT 拦截器，由 Controller 自己验证 Refresh Token
- */
+@Tag(name = "认证管理", description = "登录、注册、Token 刷新、登出")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final JwtUtil jwtUtil;
-    private final UserMapper userMapper;
-    private final TokenBlacklistService tokenBlacklistService;
+    private final AuthService authService;
 
-    /**
-     * 使用 Refresh Token 换取新的 Access Token
-     * 同时换发新的 Refresh Token（Token 旋转机制），旧 Refresh Token 加入黑名单
-     *
-     * @param request HTTP 请求（包含 Authorization 头）
-     * @return 新的 token、refreshToken、expiresIn、userInfo
-     */
+    @Operation(summary = "用户登录", description = "返回 AccessToken + RefreshToken + 用户信息")
+    @PostMapping("/login")
+    public Result<Map<String, Object>> login(@RequestBody LoginDTO loginDTO) {
+        return Result.success(authService.login(loginDTO));
+    }
+
+    @Operation(summary = "用户注册", description = "注册成功后自动返回登录 Token")
+    @PostMapping("/register")
+    public Result<Map<String, Object>> register(@RequestBody RegisterDTO registerDTO) {
+        return Result.success(authService.register(registerDTO));
+    }
+
+    @Operation(summary = "刷新 Token", description = "使用 RefreshToken 换发新的 AccessToken，支持滑动过期")
     @PostMapping("/refresh")
     public Result<Map<String, Object>> refresh(HttpServletRequest request) {
-        // 1. 从请求头提取 Refresh Token
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new BusinessException(401, "请先登录");
         }
+        String refreshToken = authHeader.substring(7);
+        return Result.success(authService.refresh(refreshToken));
+    }
 
-        String token = authHeader.substring(7);
-
-        // 2. 解析并验证 Refresh Token
-        try {
-            Claims claims = jwtUtil.parseToken(token);
-
-            // 验证 Token 类型必须是 refresh
-            String tokenType = claims.get("type", String.class);
-            if (!"refresh".equals(tokenType)) {
-                throw new BusinessException(401, "Token 类型错误");
-            }
-
-            // 校验 Token 是否在黑名单中
-            String jti = jwtUtil.getJtiFromToken(token);
-            if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
-                throw new BusinessException(401, "登录已过期，请重新登录");
-            }
-
-            // 3. 提取用户ID，从数据库查询完整用户信息
-            Long userId = claims.get("userId", Long.class);
-            User user = userMapper.findById(userId);
-            if (user == null || user.getStatus() == 0) {
-                throw new BusinessException(401, "用户不存在或已被禁用");
-            }
-
-            // 4. 构建 UserDTO 生成新的 Access Token
-            UserDTO userDTO = new UserDTO();
-            userDTO.setId(user.getId());
-            userDTO.setUsername(user.getUsername());
-            userDTO.setRole(user.getRole());
-
-            String newAccessToken = jwtUtil.generateAccessToken(userDTO);
-            String newRefreshToken = jwtUtil.generateRefreshToken(user.getId());
-
-            // 5. 将旧的 Refresh Token 加入黑名单
-            Date expiration = jwtUtil.getExpirationFromToken(token);
-            tokenBlacklistService.addToBlacklist(jti, expiration);
-
-            // 6. 组装用户信息
-            Map<String, Object> userInfo = new HashMap<>();
-            userInfo.put("id", user.getId());
-            userInfo.put("username", user.getUsername());
-            userInfo.put("nickname", user.getNickname());
-            userInfo.put("avatar", user.getAvatar());
-            userInfo.put("email", user.getEmail());
-            userInfo.put("role", user.getRole());
-
-            // 7. 返回新的 Token 和用户信息
-            Map<String, Object> result = new HashMap<>();
-            result.put("token", newAccessToken);
-            result.put("refreshToken", newRefreshToken);
-            result.put("expiresIn", jwtUtil.getExpiration() / 1000);
-            result.put("userInfo", userInfo);
-
-            return Result.success(result);
-
-        } catch (ExpiredJwtException e) {
-            throw new BusinessException(401, "登录已过期，请重新登录");
-        } catch (JwtException e) {
-            throw new BusinessException(401, "Token 无效");
+    @Operation(summary = "登出", description = "将当前 AccessToken 加入黑名单")
+    @PostMapping("/logout")
+    public Result<Void> logout(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            authService.logout(authHeader.substring(7));
         }
+        return Result.success();
+    }
+
+    @Operation(summary = "获取当前用户信息", description = "需要登录")
+    @GetMapping("/profile")
+    public Result<Map<String, Object>> profile() {
+        return Result.success(authService.profile());
     }
 }

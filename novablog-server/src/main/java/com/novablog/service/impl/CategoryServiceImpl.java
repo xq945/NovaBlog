@@ -4,6 +4,7 @@ import com.novablog.common.annotation.AutoFillTime;
 import com.novablog.common.enums.OperationType;
 import com.novablog.common.exception.BusinessException;
 import com.novablog.entity.Category;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.novablog.mapper.CategoryMapper;
 import com.novablog.service.CategoryService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class CategoryServiceImpl implements CategoryService {
+public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> implements CategoryService {
 
     private final CategoryMapper categoryMapper;
 

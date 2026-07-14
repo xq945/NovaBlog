@@ -34,12 +34,6 @@
         </foreach>
     </select>
 
-    <!-- 插入新用户 -->
-    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO user (username, password, nickname, avatar, email, role, status)
-        VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{email}, #{role}, #{status})
-    </insert>
-
     <!-- 分页查询用户列表（按注册时间倒序） -->
     <select id="findList" resultMap="userResultMap">
         SELECT * FROM user
