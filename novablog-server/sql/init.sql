@@ -155,6 +155,19 @@ CREATE TABLE `chat_message` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 对话消息表';
 
 -- ============================================
+-- 14. 收藏表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `favorite` (
+    `id`          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `user_id`     BIGINT NOT NULL COMMENT '收藏用户ID',
+    `article_id`  BIGINT NOT NULL COMMENT '收藏文章ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+    UNIQUE KEY `uk_user_article` (`user_id`, `article_id`) COMMENT '同一用户对同一文章只能收藏一次',
+    KEY `idx_user_id` (`user_id`) COMMENT '按用户查询收藏列表',
+    KEY `idx_article_id` (`article_id`) COMMENT '按文章查询收藏数'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章收藏表';
+
+-- ============================================
 -- 外键约束（保证数据完整性）
 -- ============================================
 -- 文章表外键
@@ -181,6 +194,11 @@ ALTER TABLE `chat_session`
 -- AI 对话消息表外键
 ALTER TABLE `chat_message`
     ADD CONSTRAINT `fk_message_session` FOREIGN KEY (`session_id`) REFERENCES `chat_session` (`id`) ON DELETE CASCADE;
+
+-- 收藏表外键
+ALTER TABLE `favorite`
+    ADD CONSTRAINT `fk_favorite_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_favorite_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
 
 -- 恢复外键检查
 SET FOREIGN_KEY_CHECKS = 1;

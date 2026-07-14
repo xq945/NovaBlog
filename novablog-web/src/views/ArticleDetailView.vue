@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getArticleDetail, likeArticle, unlikeArticle, getLikeStatus } from '../api/article'
+import { favoriteArticle, unfavoriteArticle, getFavoriteStatus } from '../api/favorite'
 import { publishComment, getCommentList, deleteComment } from '../api/comment'
 import { useUserStore } from '../stores'
 import { marked } from 'marked'
@@ -126,6 +127,72 @@ const handleUnlike = async () => {
     ElMessage.error(error.message || '取消点赞失败')
   } finally {
     likeLoading.value = false
+  }
+}
+
+// ========== 收藏区域 ==========
+const favorited = ref(false)
+const favoriteCount = ref(0)
+const favoriteLoading = ref(false)
+
+const fetchFavoriteStatus = async () => {
+  const articleId = route.params.id
+  if (!articleId) return
+
+  try {
+    const res = await getFavoriteStatus(articleId)
+    if (res.code === 200) {
+      favorited.value = res.data.favorited
+      favoriteCount.value = res.data.favoriteCount
+    }
+  } catch (error) {
+    console.error('获取收藏状态失败', error)
+  }
+}
+
+const handleFavorite = async () => {
+  if (!userStore.userInfo) {
+    router.push('/login')
+    return
+  }
+  const articleId = route.params.id
+  if (!articleId) return
+
+  favoriteLoading.value = true
+  try {
+    const res = await favoriteArticle(articleId)
+    if (res.code === 200) {
+      favorited.value = true
+      favoriteCount.value = res.data.favoriteCount
+      ElMessage.success('收藏成功')
+    } else {
+      ElMessage.error(res.message || '收藏失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '收藏失败')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
+const handleUnfavorite = async () => {
+  const articleId = route.params.id
+  if (!articleId) return
+
+  favoriteLoading.value = true
+  try {
+    const res = await unfavoriteArticle(articleId)
+    if (res.code === 200) {
+      favorited.value = false
+      favoriteCount.value = res.data.favoriteCount
+      ElMessage.success('已取消收藏')
+    } else {
+      ElMessage.error(res.message || '取消收藏失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '取消收藏失败')
+  } finally {
+    favoriteLoading.value = false
   }
 }
 
@@ -265,6 +332,7 @@ const canReply = () => !!userStore.userInfo
 onMounted(() => {
   fetchArticle()
   fetchLikeStatus()
+  fetchFavoriteStatus()
   fetchComments()
 })
 </script>
@@ -304,7 +372,7 @@ onMounted(() => {
 
         <div class="article-content" v-html="renderMarkdown(article.content)"></div>
 
-        <!-- 点赞区域 -->
+        <!-- 点赞 & 收藏区域 -->
         <div class="like-section">
           <div class="like-actions">
             <template v-if="!userStore.userInfo">
@@ -317,6 +385,16 @@ onMounted(() => {
                 <el-icon><Star /></el-icon>
                 <span>点赞</span>
                 <span class="like-count">{{ likeCount }}</span>
+              </el-button>
+              <el-button
+                type="default"
+                size="large"
+                class="like-btn"
+                @click="router.push('/login')"
+              >
+                <el-icon><Star /></el-icon>
+                <span>收藏</span>
+                <span class="like-count">{{ favoriteCount }}</span>
               </el-button>
             </template>
             <template v-else>
@@ -343,6 +421,30 @@ onMounted(() => {
                 <el-icon><StarFilled /></el-icon>
                 <span>已赞</span>
                 <span class="like-count">{{ likeCount }}</span>
+              </el-button>
+              <el-button
+                v-if="!favorited"
+                type="default"
+                size="large"
+                class="like-btn"
+                :loading="favoriteLoading"
+                @click="handleFavorite"
+              >
+                <el-icon><Star /></el-icon>
+                <span>收藏</span>
+                <span class="like-count">{{ favoriteCount }}</span>
+              </el-button>
+              <el-button
+                v-else
+                type="warning"
+                size="large"
+                class="like-btn favorited"
+                :loading="favoriteLoading"
+                @click="handleUnfavorite"
+              >
+                <el-icon><StarFilled /></el-icon>
+                <span>已收藏</span>
+                <span class="like-count">{{ favoriteCount }}</span>
               </el-button>
             </template>
           </div>
@@ -578,6 +680,12 @@ onMounted(() => {
   background: rgba(64, 158, 255, 0.2);
   border-color: #409eff;
   color: #409eff;
+}
+
+.like-btn.favorited {
+  background: rgba(230, 162, 60, 0.2);
+  border-color: #e6a23c;
+  color: #e6a23c;
 }
 
 .like-count {

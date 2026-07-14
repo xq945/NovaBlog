@@ -1,8 +1,9 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMyArticles, deleteArticle } from '../api/article'
+import { getMyFavorites } from '../api/favorite'
 import { getProfile, updateProfile } from '../api/user'
 import { uploadFile } from '../api/upload'
 import { useUserStore } from '../stores'
@@ -170,6 +171,9 @@ const getRoleType = (role) => {
   return role === 'ADMIN' ? 'danger' : 'info'
 }
 
+// ========== Tab 切换 ==========
+const activeTab = ref('articles')
+
 // ========== 我的文章 ==========
 const articles = ref([])
 const total = ref(0)
@@ -242,6 +246,43 @@ const formatTime = (time) => {
     minute: '2-digit'
   })
 }
+
+// ========== 我的收藏 ==========
+const favorites = ref([])
+const favoriteTotal = ref(0)
+const favoriteLoading = ref(false)
+const favoritePage = ref(1)
+const favoritePageSize = ref(10)
+
+const fetchMyFavorites = async () => {
+  favoriteLoading.value = true
+  try {
+    const res = await getMyFavorites({
+      page: favoritePage.value,
+      size: favoritePageSize.value
+    })
+    if (res.code === 200) {
+      favorites.value = res.data.list || []
+      favoriteTotal.value = res.data.total || 0
+    }
+  } catch (error) {
+    ElMessage.error('加载收藏列表失败')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
+const handleFavoritePageChange = (page) => {
+  favoritePage.value = page
+  fetchMyFavorites()
+}
+
+// 切换 tab 时加载对应数据
+watch(activeTab, (tab) => {
+  if (tab === 'favorites') {
+    fetchMyFavorites()
+  }
+})
 
 onMounted(() => {
   if (!userStore.isLoggedIn()) {
@@ -375,73 +416,131 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 我的文章列表 -->
-      <div class="article-section">
-        <h2 class="section-title">我的文章</h2>
+      <!-- 标签页：文章 / 收藏 -->
+      <div class="tabs-section">
+        <el-tabs v-model="activeTab" class="profile-tabs">
+          <el-tab-pane label="我的文章" name="articles">
+            <div class="article-table-wrapper" v-loading="articleLoading">
+              <div v-if="articles.length > 0" class="table-debug">共 {{ total }} 篇文章</div>
 
-        <div class="article-table-wrapper" v-loading="articleLoading">
-          <div v-if="articles.length > 0" class="table-debug">共 {{ total }} 篇文章</div>
+              <el-table
+                v-if="articles.length > 0"
+                :data="articles"
+                style="width: 100%"
+                border
+              >
+                <el-table-column prop="title" label="标题" min-width="200">
+                  <template #default="{ row }">
+                    <span class="article-title" @click="router.push(`/article/${row.id}`)">
+                      {{ row.title }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="分类" width="120">
+                  <template #default="{ row }">
+                    {{ row.category?.name || '-' }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="100">
+                  <template #default="{ row }">
+                    <el-tag :type="getStatusType(row.status)" size="small">
+                      {{ getStatusText(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="浏览量" width="100">
+                  <template #default="{ row }">
+                    {{ row.viewCount || 0 }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="发布时间" width="160">
+                  <template #default="{ row }">
+                    {{ formatTime(row.createTime) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="140">
+                  <template #default="{ row }">
+                    <el-button type="primary" size="small" text @click="goToEdit(row.id)">
+                      编辑
+                    </el-button>
+                    <el-button type="danger" size="small" text @click="handleDelete(row.id)">
+                      删除
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
 
-          <el-table
-            v-if="articles.length > 0"
-            :data="articles"
-            style="width: 100%"
-            border
-          >
-            <el-table-column prop="title" label="标题" min-width="200">
-              <template #default="{ row }">
-                <span class="article-title" @click="router.push(`/article/${row.id}`)">
-                  {{ row.title }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="分类" width="120">
-              <template #default="{ row }">
-                {{ row.category?.name || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" size="small">
-                  {{ getStatusText(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="浏览量" width="100">
-              <template #default="{ row }">
-                {{ row.viewCount || 0 }}
-              </template>
-            </el-table-column>
-            <el-table-column label="发布时间" width="160">
-              <template #default="{ row }">
-                {{ formatTime(row.createTime) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="140">
-              <template #default="{ row }">
-                <el-button type="primary" size="small" text @click="goToEdit(row.id)">
-                  编辑
-                </el-button>
-                <el-button type="danger" size="small" text @click="handleDelete(row.id)">
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+              <el-empty v-else description="还没有文章，去写一篇吧" />
+            </div>
 
-          <el-empty v-else description="还没有文章，去写一篇吧" />
-        </div>
+            <div class="pagination-wrapper" v-if="total > 0">
+              <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :total="total"
+                :page-sizes="[10, 20, 50]"
+                layout="total, prev, pager, next"
+                @current-change="handlePageChange"
+              />
+            </div>
+          </el-tab-pane>
 
-        <div class="pagination-wrapper" v-if="total > 0">
-          <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
-            :total="total"
-            :page-sizes="[10, 20, 50]"
-            layout="total, prev, pager, next"
-            @current-change="handlePageChange"
-          />
-        </div>
+          <el-tab-pane label="我的收藏" name="favorites">
+            <div class="article-table-wrapper" v-loading="favoriteLoading">
+              <div v-if="favorites.length > 0" class="table-debug">共 {{ favoriteTotal }} 篇收藏</div>
+
+              <el-table
+                v-if="favorites.length > 0"
+                :data="favorites"
+                style="width: 100%"
+                border
+              >
+                <el-table-column prop="title" label="标题" min-width="200">
+                  <template #default="{ row }">
+                    <span class="article-title" @click="router.push(`/article/${row.id}`)">
+                      {{ row.title }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="作者" width="120">
+                  <template #default="{ row }">
+                    {{ row.author?.nickname || '匿名' }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="分类" width="100">
+                  <template #default="{ row }">
+                    {{ row.category?.name || '-' }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="收藏时间" width="160">
+                  <template #default="{ row }">
+                    {{ formatTime(row.favoriteTime) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="100">
+                  <template #default="{ row }">
+                    <el-button type="primary" size="small" text @click="router.push(`/article/${row.id}`)">
+                      查看
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <el-empty v-else description="还没有收藏文章" />
+            </div>
+
+            <div class="pagination-wrapper" v-if="favoriteTotal > 0">
+              <el-pagination
+                v-model:current-page="favoritePage"
+                v-model:page-size="favoritePageSize"
+                :total="favoriteTotal"
+                :page-sizes="[10, 20, 50]"
+                layout="total, prev, pager, next"
+                @current-change="handleFavoritePageChange"
+              />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </div>
     </div>
   </main>
@@ -583,16 +682,27 @@ onMounted(() => {
   margin-top: 20px;
 }
 
-/* 文章区域 */
-.article-section {
+/* 标签页区域 */
+.tabs-section {
   margin-top: 32px;
 }
 
-.section-title {
-  color: #fff;
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 16px 0;
+.profile-tabs :deep(.el-tabs__item) {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.profile-tabs :deep(.el-tabs__item.is-active) {
+  color: #409eff;
+}
+
+.profile-tabs :deep(.el-tabs__active-bar) {
+  background-color: #409eff;
+}
+
+.profile-tabs :deep(.el-tabs__nav-wrap::after) {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .article-table-wrapper {
