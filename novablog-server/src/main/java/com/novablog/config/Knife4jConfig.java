@@ -1,0 +1,25 @@
+package com.novablog.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ConditionalOnProperty(name = "knife4j.enable", havingValue = "true")
+public class Knife4jConfig {
+
+    @Bean
+    public OpenAPI novablogOpenAPI() {
+        return new OpenAPI()
+            .info(new Info()
+                .title("NovaBlog API 文档")
+                .description("NovaBlog 个人博客系统接口文档")
+                .version("2.0.0")
+                .contact(new Contact()
+                    .name("NovaBlog")
+                    .url("https://github.com/NovaBlog")));
+    }
+}

@@ -12,6 +12,7 @@ import com.novablog.dto.UserStatusDTO;
 import com.novablog.entity.User;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.ArticleService;
+import com.novablog.service.AuthService;
 import com.novablog.service.UserService;
 import com.novablog.service.assembler.UserVOAssembler;
 import com.novablog.vo.AdminUserVO;
@@ -45,31 +46,24 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserService userService;
+    private final AuthService authService;
     private final UserMapper userMapper;
     private final ArticleService articleService;
 
     /**
-     * 用户注册
-     *
-     * @param registerDTO 注册参数
-     * @return 注册结果
+     * 用户注册，委托给 AuthService
      */
     @PostMapping("/register")
-    public Result<Void> register(@RequestBody RegisterDTO registerDTO) {
-        userService.register(registerDTO);
-        return Result.success();
+    public Result<Map<String, Object>> register(@RequestBody RegisterDTO registerDTO) {
+        return Result.success(authService.register(registerDTO));
     }
 
     /**
-     * 用户登录
-     *
-     * @param loginDTO 登录参数
-     * @return 包含 token、refreshToken、expiresIn、userInfo
+     * 用户登录，委托给 AuthService
      */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody LoginDTO loginDTO) {
-        Map<String, Object> loginResult = userService.login(loginDTO);
-        return Result.success(loginResult);
+        return Result.success(authService.login(loginDTO));
     }
 
     /**

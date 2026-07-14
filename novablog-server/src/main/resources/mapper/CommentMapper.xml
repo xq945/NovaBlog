@@ -23,12 +23,6 @@
         </association>
     </resultMap>
 
-    <!-- 插入评论 -->
-    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO comment (content, article_id, user_id, parent_id, reply_to_id)
-        VALUES (#{content}, #{articleId}, #{userId}, #{parentId}, #{replyToId})
-    </insert>
-
     <!-- 根据ID查询评论（实体，用于业务校验） -->
     <select id="selectById" resultType="com.novablog.entity.Comment">
         SELECT * FROM comment WHERE id = #{id} LIMIT 1

@@ -1,58 +1,48 @@
 package com.novablog.common;
 
-import com.novablog.dto.UserDTO;
+import java.util.List;
 
 /**
- * 用户上下文工具类
- * 基于 ThreadLocal 实现同一线程内的用户信息共享
+ * 用户上下文工具类。基于 ThreadLocal 实现用户信息共享。
+ * JwtAuthenticationFilter 在认证成功后设置，请求结束后由 Filter 清理。
  */
 public class UserContext {
 
-    private static final ThreadLocal<UserDTO> HOLDER = new ThreadLocal<>();
+    private static final ThreadLocal<Long> userIdHolder = new ThreadLocal<>();
+    private static final ThreadLocal<String> usernameHolder = new ThreadLocal<>();
+    private static final ThreadLocal<List<String>> rolesHolder = new ThreadLocal<>();
 
-    /**
-     * 设置当前用户
-     */
-    public static void set(UserDTO user) {
-        HOLDER.set(user);
+    public static void set(Long userId, String username, List<String> roles) {
+        userIdHolder.set(userId);
+        usernameHolder.set(username);
+        rolesHolder.set(roles);
     }
 
-    /**
-     * 获取当前用户
-     */
-    public static UserDTO get() {
-        return HOLDER.get();
-    }
-
-    /**
-     * 获取当前用户ID
-     */
     public static Long getUserId() {
-        UserDTO user = get();
-        return user != null ? user.getId() : null;
+        return userIdHolder.get();
     }
 
-    /**
-     * 获取当前用户名
-     */
     public static String getUsername() {
-        UserDTO user = get();
-        return user != null ? user.getUsername() : null;
+        return usernameHolder.get();
     }
 
-    /**
-     * 获取当前用户角色
-     */
+    public static List<String> getRoles() {
+        return rolesHolder.get();
+    }
+
     public static String getRole() {
-        UserDTO user = get();
-        return user != null ? user.getRole() : null;
+        List<String> roles = rolesHolder.get();
+        if (roles == null || roles.isEmpty()) {
+            return null;
+        }
+        // 取第一个角色，去掉 ROLE_ 前缀返回（兼容旧代码）
+        String role = roles.get(0);
+        return role.startsWith("ROLE_") ? role.substring(5) : role;
     }
 
-    /**
-     * 清理当前线程的用户信息
-     * 必须在请求结束后调用，防止内存泄漏
-     */
     public static void clear() {
-        HOLDER.remove();
+        userIdHolder.remove();
+        usernameHolder.remove();
+        rolesHolder.remove();
     }
 }

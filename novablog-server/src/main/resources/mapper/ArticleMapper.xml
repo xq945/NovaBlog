@@ -60,12 +60,6 @@
         </if>
     </sql>
 
-    <!-- 插入文章 -->
-    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO article (title, content, summary, cover, user_id, category_id, status)
-        VALUES (#{title}, #{content}, #{summary}, #{cover}, #{userId}, #{categoryId}, #{status})
-    </insert>
-
     <!-- 根据ID查询文章 -->
     <select id="findById" resultMap="articleResultMap">
         SELECT * FROM article WHERE id = #{id} LIMIT 1
@@ -254,11 +248,6 @@
         </foreach>
         AND a.status = 1
     </select>
-
-    <!-- 删除文章 -->
-    <delete id="deleteById">
-        DELETE FROM article WHERE id = #{id}
-    </delete>
 
     <!-- 管理员查询所有文章（含草稿） -->
     <select id="findAdminList" resultMap="articleVOResultMap">

@@ -60,26 +60,44 @@ spring:
           min-idle: 0
           max-wait: 1000ms
 
-# 5. MyBatis 配置
-mybatis:
-  mapper-locations: classpath:mapper/*.xml       # mapper XML 文件路径
-  type-aliases-package: com.novablog.entity      # 实体类别名包
+# 5. MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.novablog.entity
+  global-config:
+    db-config:
+      id-type: auto
+      # 逻辑删除字段（第二阶段启用）
+      # logic-delete-field: deleted
+      # logic-delete-value: 1
+      # logic-not-delete-value: 0
   configuration:
-    map-underscore-to-camel-case: true           # 下划线自动转驼峰（关键！）
+    map-underscore-to-camel-case: true
     # log-impl 在 application-dev.yml 中配置，开发环境输出 SQL，生产环境关闭
 
 # 6. JWT 登录认证配置
+# secret 必须为 Base64 编码的随机字节（至少 256 位），生成命令：openssl rand -base64 64
 jwt:
   secret: ${NOVABLOG_JWT_SECRET}
-  expiration: 7200000            # Token 过期时间：2 小时
-  refresh-expiration: 604800000   # 刷新 Token：7 天
+  access-expiration: 7200000       # Access Token 过期时间：2 小时
+  refresh-expiration: 604800000    # Refresh Token 过期时间：7 天
 
-# 7. 日志配置
+# 7. SpringDoc / Knife4j API 文档配置
+knife4j:
+  enable: ${KNIFE4J_ENABLE:false}  # 默认关闭，开发时设 KNIFE4J_ENABLE=true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+# 8. 日志配置
 logging:
   level:
     com.novablog.mapper: debug  # 打印 Mapper SQL
 
-# 8. 阿里云OSS配置
+# 9. 阿里云OSS配置
 aliyun:
   oss:
     endpoint: ${ALIYUN_OSS_ENDPOINT}          # OSS服务端点，如 oss-cn-beijing.aliyuncs.com
@@ -87,7 +105,7 @@ aliyun:
     access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}      # RAM用户AccessKey ID
     access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}  # RAM用户AccessKey Secret
 
-# 9. AI/RAG 配置（基于 Spring AI 框架）
+# 10. AI/RAG 配置（基于 Spring AI 框架）
 # 对话模型和嵌入模型由 AiModelConfig 根据 ai.chat.provider / ai.embedding.provider 动态装配
 # 支持：deepseek（OpenAI 兼容）、openai、bailian（阿里云百炼/通义）
 # 注意：DeepSeek 目前仅支持 /chat/completions，不支持 /embeddings
