@@ -19,9 +19,13 @@ export const useUserStore = defineStore('user', () => {
    */
   const setToken = (newToken, newRefreshToken) => {
     token.value = newToken
-    refreshToken.value = newRefreshToken
     localStorage.setItem('token', newToken)
-    localStorage.setItem('refreshToken', newRefreshToken)
+    // 未返回新 RT 时不覆盖已有的：setItem 会把 undefined 存成字符串 "undefined"，
+    // 之后被当成有效令牌发出去，反而让整条刷新链路失效
+    if (newRefreshToken) {
+      refreshToken.value = newRefreshToken
+      localStorage.setItem('refreshToken', newRefreshToken)
+    }
   }
 
   /**

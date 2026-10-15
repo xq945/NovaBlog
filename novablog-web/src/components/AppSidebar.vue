@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores'
+import { logout } from '../api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,7 +40,17 @@ const navigate = (path) => {
   router.push(path)
 }
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    // 必须先等接口返回再 reload，否则页面跳转会中断在途请求，服务端收不到撤销指令。
+    // 加超时兜底：网络挂起时不至于让用户卡在登出按钮上
+    await Promise.race([
+      logout(userStore.refreshToken),
+      new Promise((resolve) => setTimeout(resolve, 2000))
+    ])
+  } catch {
+    // 服务端不可达不阻塞本地登出，清掉本地状态即可
+  }
   userStore.clearToken()
   ElMessage.success('已退出登录')
   window.location.reload()

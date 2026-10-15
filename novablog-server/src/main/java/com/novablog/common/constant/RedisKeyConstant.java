@@ -35,8 +35,23 @@ public final class RedisKeyConstant {
     /**
      * Token 黑名单 Key 前缀
      * 格式：blog:user:token:blacklist:{jti}
+     * 存放已被消费或已失效的单个令牌（登出的 AT、轮换后的旧 RT）
      */
     public static final String TOKEN_BLACKLIST = PREFIX + "user:token:blacklist:";
+
+    /**
+     * 会话撤销 Key 前缀
+     * 格式：blog:user:token:session:{sid}
+     * 值为撤销时间戳，命中即整个会话（该 sid 的全部 AT/RT）失效
+     */
+    public static final String TOKEN_SESSION = PREFIX + "user:token:session:";
+
+    /**
+     * RefreshToken 轮换映射 Key 前缀
+     * 格式：blog:user:token:rotation:{oldJti}
+     * 值为轮换后签发的新 RT，仅在宽限窗口内存在，用于收敛并发刷新
+     */
+    public static final String TOKEN_ROTATION = PREFIX + "user:token:rotation:";
 
     /**
      * 浏览量同步定时任务分布式锁 Key
@@ -71,5 +86,25 @@ public final class RedisKeyConstant {
      */
     public static String tokenBlacklist(String jti) {
         return TOKEN_BLACKLIST + jti;
+    }
+
+    /**
+     * 构建会话撤销 Key
+     *
+     * @param sid 会话标识
+     * @return 完整 Redis Key
+     */
+    public static String tokenSession(String sid) {
+        return TOKEN_SESSION + sid;
+    }
+
+    /**
+     * 构建轮换映射 Key
+     *
+     * @param oldJti 被轮换掉的旧 RefreshToken 的 jti
+     * @return 完整 Redis Key
+     */
+    public static String tokenRotation(String oldJti) {
+        return TOKEN_ROTATION + oldJti;
     }
 }

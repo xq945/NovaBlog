@@ -61,8 +61,13 @@ request.interceptors.response.use(
     if (res?.code === 401 && !originalRequest._isRefreshRequest) {
       const userStore = useUserStore()
 
+      // RefreshToken 每次刷新都会轮换，且可能已被其他标签页轮换过。
+      // 内存里的 store 是本页打开时的快照，必须优先读 localStorage 取全局最新值，
+      // 否则会拿着早已作废的旧 RT 去刷新，被服务端判定为令牌泄露并撤销整个会话
+      const latestRefreshToken = localStorage.getItem('refreshToken') || userStore.refreshToken
+
       // 没有 refreshToken，直接清除登录状态
-      if (!userStore.refreshToken) {
+      if (!latestRefreshToken) {
         userStore.clearToken()
         window.dispatchEvent(new CustomEvent('show-login', {
           detail: { message: res.message || '登录已过期，请重新登录' }
@@ -86,7 +91,7 @@ request.interceptors.response.use(
       try {
         // 调用刷新接口，携带 Refresh Token
         const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, null, {
-          headers: { Authorization: 'Bearer ' + userStore.refreshToken }
+          headers: { Authorization: 'Bearer ' + latestRefreshToken }
         })
 
         const refreshData = refreshRes.data
@@ -96,7 +101,9 @@ request.interceptors.response.use(
 
           // 更新 Pinia Store
           userStore.setToken(token, refreshToken)
-          userStore.setUserInfo(userInfo)
+          if (userInfo) {
+            userStore.setUserInfo(userInfo)
+          }
 
           // 重试队列中所有等待的请求
           onTokenRefreshed(token)

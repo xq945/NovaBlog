@@ -29,6 +29,19 @@ export function login(data) {
 }
 
 /**
+ * 登出：撤销整个服务端会话。
+ * 带上 refreshToken 是因为 AccessToken 可能已过期，后端需要靠它定位会话
+ * @param {string} refreshToken - 当前 RefreshToken
+ */
+export function logout(refreshToken) {
+  return request({
+    url: '/auth/logout',
+    method: 'post',
+    data: { refreshToken }
+  })
+}
+
+/**
  * 获取当前登录用户信息
  */
 export function getProfile() {

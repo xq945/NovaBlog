@@ -17,9 +17,11 @@ import com.novablog.mapper.UserMapper;
 import com.novablog.mapper.UserRoleMapper;
 import com.novablog.security.JwtTokenProvider;
 import com.novablog.service.AuthService;
-import com.novablog.util.RedisUtil;
+import com.novablog.service.TokenBlacklistService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -27,9 +29,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -37,10 +40,17 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
-    private final RedisUtil redisUtil;
+    private final TokenBlacklistService tokenBlacklistService;
     private final RoleMapper roleMapper;
     private final LoginLogMapper loginLogMapper;
     private final UserRoleMapper userRoleMapper;
+
+    /**
+     * RefreshToken 轮换后的宽限窗口。窗口内旧 RT 再次出现视为并发刷新（多标签页共享同一 AT，
+     * 会几乎同时刷新），复用已签发的新 RT；窗口外则判定为令牌泄露。
+     */
+    @Value("${jwt.rotation-grace}")
+    private long rotationGrace;
 
     private static final Pattern PASSWORD_PATTERN = Pattern.compile(
             "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?]).{8,20}$"
@@ -137,48 +147,97 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(401, "Token 类型错误");
         }
 
+        Long userId = jwtTokenProvider.getUserId(refreshToken);
         String jti = jwtTokenProvider.getJti(refreshToken);
-        if (redisUtil.hasKey("token:blacklist:" + jti)) {
-            throw new BusinessException(401, "登录已过期，请重新登录");
+        // 存量 RT 不含 sid：补发一个，保证这次轮换出的令牌家族仍可被会话级撤销。
+        // storedSid 用于查询已有会话，sid 用于签发新令牌，两者在存量令牌上不同
+        String storedSid = jwtTokenProvider.getSid(refreshToken);
+        String sid = storedSid != null ? storedSid : UUID.randomUUID().toString();
+
+        // 会话已被整体撤销（用户登出，或此前判定过令牌泄露）
+        if (tokenBlacklistService.isSessionRevoked(storedSid)) {
+            throw new BusinessException(401, "登录已失效，请重新登录");
         }
 
-        Long userId = jwtTokenProvider.getUserId(refreshToken);
         User user = userMapper.selectById(userId);
         if (user == null || user.getStatus() == null || user.getStatus() == 0) {
             throw new BusinessException(401, "用户不存在或已被禁用");
         }
 
         List<String> authorities = buildAuthorities(userId);
-        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUsername(), authorities);
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("token", newAccessToken);
-        result.put("expiresIn", 7200);
-
-        // 滑动过期：RefreshToken 剩余有效期 ≤ 1 天时，同时换发
-        long remaining = jwtTokenProvider.getRemainingMillis(refreshToken);
-        if (remaining <= 86400000) {
-            String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
-            result.put("refreshToken", newRefreshToken);
-            // 旧 RT 加入黑名单
-            redisUtil.setWithExpire("token:blacklist:" + jti, "1", Math.max(remaining, 1), TimeUnit.MILLISECONDS);
+        // 该 RT 已被消费过（轮换走了），它再次出现只有两种可能
+        if (tokenBlacklistService.isBlacklisted(jti)) {
+            String rotated = tokenBlacklistService.getRotated(jti);
+            if (rotated != null) {
+                // 一、仍在宽限窗口内：多个标签页共享同一个 AT，会几乎同时刷新，
+                //     直接复用已签发的那张 RT，让并发方收敛到同一个令牌
+                return buildRefreshResult(user, authorities, sid, rotated);
+            }
+            // 二、已超出宽限窗口：合法客户端手里早已是新令牌，旧令牌重现即为泄露，
+            //     作废整个会话家族，逼攻击者与真实用户一起重新登录
+            log.warn("检测到 RefreshToken 重放，撤销整个会话: userId={}, sid={}, jti={}", userId, sid, jti);
+            tokenBlacklistService.revokeSession(sid, jwtTokenProvider.getRefreshExpirationMillis());
+            throw new BusinessException(401, "登录状态异常，请重新登录");
         }
 
-        return result;
+        // 正常轮换：每次刷新都签发新 RT，旧 RT 立即作废，缩小泄露后的可用窗口
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId, sid);
+        if (!tokenBlacklistService.saveRotation(jti, newRefreshToken, rotationGrace)) {
+            // 并发竞争落败说明另一个请求已先写入映射，复用它那张，
+            // 保证同一个旧 RT 只对应一张新 RT
+            String winner = tokenBlacklistService.getRotated(jti);
+            if (winner != null) {
+                newRefreshToken = winner;
+            }
+        }
+        tokenBlacklistService.blacklist(jti, jwtTokenProvider.getRemainingMillis(refreshToken));
+
+        return buildRefreshResult(user, authorities, sid, newRefreshToken);
     }
 
     @Override
-    public void logout(String accessToken) {
-        String jti = jwtTokenProvider.getJti(accessToken);
-        long remaining = jwtTokenProvider.getRemainingMillis(accessToken);
-        if (remaining > 0) {
-            redisUtil.setWithExpire("token:blacklist:" + jti, "1", remaining, TimeUnit.MILLISECONDS);
+    public void logout(String accessToken, String refreshToken) {
+        // 优先用 AT 的 sid；AT 已过期或被篡改时回退到 RT
+        String sid = resolveSid(accessToken);
+        if (sid == null) {
+            sid = resolveSid(refreshToken);
         }
 
-        Long userId = UserContext.getUserId();
-        if (userId != null) {
-            redisUtil.del("login:user:" + userId);
+        if (sid != null) {
+            // 撤销标记的存活时长以 RT 剩余有效期为准，RT 不可用时保守按完整有效期留存
+            long remaining = resolveRemaining(refreshToken);
+            tokenBlacklistService.revokeSession(sid,
+                remaining > 0 ? remaining : jwtTokenProvider.getRefreshExpirationMillis());
+            return;
         }
+
+        // 兜底：不含 sid 的存量令牌无法按会话撤销，退化为单令牌拉黑，
+        // 待存量令牌自然过期（AT 2 小时、RT 7 天）后此分支即失效
+        long remaining = resolveRemaining(accessToken);
+        if (remaining > 0) {
+            tokenBlacklistService.blacklist(jwtTokenProvider.getJti(accessToken), remaining);
+        }
+    }
+
+    /**
+     * 安全解析会话标识。Token 为空、无效或为不含 sid 的存量格式时返回 null
+     */
+    private String resolveSid(String token) {
+        if (token == null || !jwtTokenProvider.validateToken(token)) {
+            return null;
+        }
+        return jwtTokenProvider.getSid(token);
+    }
+
+    /**
+     * 安全解析 Token 剩余有效期，无法解析时返回 -1
+     */
+    private long resolveRemaining(String token) {
+        if (token == null || !jwtTokenProvider.validateToken(token)) {
+            return -1;
+        }
+        return jwtTokenProvider.getRemainingMillis(token);
     }
 
     @Override
@@ -189,22 +248,41 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(404, "用户不存在");
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("id", user.getId());
-        result.put("username", user.getUsername());
-        result.put("nickname", user.getNickname());
-        result.put("avatar", user.getAvatar());
-        result.put("email", user.getEmail());
-        result.put("role", user.getRole());
-        result.put("roles", roleMapper.findRoleNamesByUserId(userId));
-        return result;
+        return buildUserInfo(user);
     }
 
     private Map<String, Object> buildLoginResult(User user) {
+        // 一次登录派生一个会话标识，AT 与 RT 共享它，登出或判定泄露时按 sid 整体撤销
+        String sid = UUID.randomUUID().toString();
         List<String> authorities = buildAuthorities(user.getId());
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUsername(), authorities);
-        String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", jwtTokenProvider.createAccessToken(
+            user.getId(), user.getUsername(), authorities, sid));
+        result.put("refreshToken", jwtTokenProvider.createRefreshToken(user.getId(), sid));
+        result.put("expiresIn", jwtTokenProvider.getAccessExpirationSeconds());
+        result.put("userInfo", buildUserInfo(user));
+        return result;
+    }
+
+    /**
+     * 组装刷新响应。字段与登录响应保持一致，否则前端刷新后会拿到空的 userInfo
+     */
+    private Map<String, Object> buildRefreshResult(User user, List<String> authorities,
+                                                   String sid, String refreshToken) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", jwtTokenProvider.createAccessToken(
+            user.getId(), user.getUsername(), authorities, sid));
+        result.put("refreshToken", refreshToken);
+        result.put("expiresIn", jwtTokenProvider.getAccessExpirationSeconds());
+        result.put("userInfo", buildUserInfo(user));
+        return result;
+    }
+
+    /**
+     * 组装返回给前端的用户信息
+     */
+    private Map<String, Object> buildUserInfo(User user) {
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("id", user.getId());
         userInfo.put("username", user.getUsername());
@@ -213,13 +291,7 @@ public class AuthServiceImpl implements AuthService {
         userInfo.put("email", user.getEmail());
         userInfo.put("role", user.getRole());
         userInfo.put("roles", roleMapper.findRoleNamesByUserId(user.getId()));
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("token", accessToken);
-        result.put("refreshToken", refreshToken);
-        result.put("expiresIn", 7200);
-        result.put("userInfo", userInfo);
-        return result;
+        return userInfo;
     }
 
     /**
