@@ -51,7 +51,6 @@ public class SecurityConfig {
                     // 否则前端要先绕一圈刷新流程才能登出，接口内部凭 RT 仍能定位会话
                     "/auth/logout",
                     "/article/list",
-                    "/article/*",
                     "/article/hot",
                     "/comment/list",
                     "/category/list",
@@ -63,8 +62,14 @@ public class SecurityConfig {
                     "/webjars/**",
                     "/swagger-ui/**"
                 ).permitAll()
-                // 公开用户主页（Controller 内部自行校验权限）
-                .requestMatchers("/user/*", "/user/*/articles").permitAll()
+                // 公开的文章详情与用户主页：只放行「纯数字 ID」。
+                // 原来的 /article/*、/user/* 会把 /article/import、/user/profile
+                // 这类单段路径一并放行，收紧后写接口默认都需要登录
+                .requestMatchers(
+                    "/article/{id:[0-9]+}",
+                    "/user/{id:[0-9]+}",
+                    "/user/{id:[0-9]+}/articles"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter,

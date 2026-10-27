@@ -5,6 +5,7 @@ import ArticleManageTab from '../components/admin/ArticleManageTab.vue'
 import CommentManageTab from '../components/admin/CommentManageTab.vue'
 import CategoryManageTab from '../components/admin/CategoryManageTab.vue'
 import TagManageTab from '../components/admin/TagManageTab.vue'
+import OnlineUserTab from '../components/admin/OnlineUserTab.vue'
 
 const activeTab = ref('users')
 
@@ -13,7 +14,8 @@ const tabs = [
   { name: 'articles', label: '文章管理', component: ArticleManageTab },
   { name: 'comments', label: '评论管理', component: CommentManageTab },
   { name: 'categories', label: '分类管理', component: CategoryManageTab },
-  { name: 'tags', label: '标签管理', component: TagManageTab }
+  { name: 'tags', label: '标签管理', component: TagManageTab },
+  { name: 'online', label: '在线用户', component: OnlineUserTab }
 ]
 </script>
 

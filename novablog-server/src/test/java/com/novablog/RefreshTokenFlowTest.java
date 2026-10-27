@@ -162,8 +162,17 @@ public class RefreshTokenFlowTest {
 
     /** 业务状态码。后端所有业务异常都是 HTTP 200 + body.code，取不到时返回 -1 */
     private static int bizCode(HttpResponse<String> resp) {
-        String code = extract(resp.body(), "code");
+        // code 在 JSON 里是数字而不是字符串，不能用 extract 的字符串模式去匹配
+        String code = extractNumber(resp.body(), "code");
         return code == null ? -1 : Integer.parseInt(code);
+    }
+
+    private static String extractNumber(String json, String field) {
+        if (json == null) {
+            return null;
+        }
+        Matcher m = Pattern.compile("\"" + field + "\"\\s*:\\s*(\\d+)").matcher(json);
+        return m.find() ? m.group(1) : null;
     }
 
     private static String extract(String json, String field) {

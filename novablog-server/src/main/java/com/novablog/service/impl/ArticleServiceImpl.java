@@ -18,6 +18,7 @@ import com.novablog.mapper.ArticleTagMapper;
 import com.novablog.mapper.CategoryMapper;
 import com.novablog.mapper.TagMapper;
 import com.novablog.service.ArticleService;
+import com.novablog.service.NotificationService;
 import com.novablog.service.component.ArticlePermissionComponent;
 import com.novablog.service.component.ArticleStatsComponent;
 import com.novablog.service.component.TagRelationComponent;
@@ -62,6 +63,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     private final ArticlePermissionComponent articlePermissionComponent;
     private final ApplicationEventPublisher eventPublisher;
     private final ArticleIndexService articleIndexService;
+    private final NotificationService notificationService;
 
     /**
      * 摘要自动截取长度
@@ -459,6 +461,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             likeCount = getLikeCountFromRedisOrDb(articleId);
         }
         articleStatsComponent.updateHotScore(articleId, viewCount, likeCount);
+
+        // 7. 通知文章作者。自己赞自己不通知，通知失败只记日志，不影响点赞结果
+        notificationService.notifyLike(article.getUserId(), userId, articleId, article.getTitle());
     }
 
     @Override

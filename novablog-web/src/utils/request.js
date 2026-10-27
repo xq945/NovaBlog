@@ -12,22 +12,50 @@ const request = axios.create({
 
 // 是否正在刷新 Token
 let isRefreshing = false
-// 等待 Token 刷新后重试的请求队列
+// 等待 Token 刷新后重试的请求队列，元素形如 { resolve, reject }
 let refreshSubscribers = []
 
 /**
  * 将请求加入等待队列，刷新完成后重试
  */
-function addRefreshSubscriber(callback) {
-  refreshSubscribers.push(callback)
+function addRefreshSubscriber(subscriber) {
+  refreshSubscribers.push(subscriber)
 }
 
 /**
  * Token 刷新完成后，通知队列中所有请求重试
  */
 function onTokenRefreshed(newToken) {
-  refreshSubscribers.forEach(callback => callback(newToken))
+  refreshSubscribers.forEach(subscriber => subscriber.resolve(newToken))
   refreshSubscribers = []
+}
+
+/**
+ * 刷新失败时让排队中的请求一并失败
+ * 只清空队列而不 reject，会让所有等待中的 Promise 永久挂起
+ */
+function onTokenRefreshFailed(error) {
+  refreshSubscribers.forEach(subscriber => subscriber.reject(error))
+  refreshSubscribers = []
+}
+
+/**
+ * 会话类失效：被踢下线（4011）或账号被禁用（4012）
+ * 这两种情况刷新令牌也救不回来，直接回登录页，不必白跑一次刷新
+ */
+function isSessionInvalid(res) {
+  return res?.code === 4011 || res?.code === 4012
+}
+
+/**
+ * 清除登录状态并通知全局弹出登录
+ */
+function redirectToLogin(message) {
+  const userStore = useUserStore()
+  userStore.clearToken()
+  window.dispatchEvent(new CustomEvent('show-login', {
+    detail: { message: message || '登录已过期，请重新登录' }
+  }))
 }
 
 /**
@@ -57,6 +85,12 @@ request.interceptors.response.use(
     const originalRequest = error.config
     const res = error.response?.data
 
+    // 会话已被撤销或账号被禁用：刷新令牌也无效，直接回登录页
+    if (isSessionInvalid(res)) {
+      redirectToLogin(res.message)
+      return Promise.reject(error)
+    }
+
     // 401 且不是刷新请求本身，尝试自动续期
     if (res?.code === 401 && !originalRequest._isRefreshRequest) {
       const userStore = useUserStore()
@@ -68,19 +102,19 @@ request.interceptors.response.use(
 
       // 没有 refreshToken，直接清除登录状态
       if (!latestRefreshToken) {
-        userStore.clearToken()
-        window.dispatchEvent(new CustomEvent('show-login', {
-          detail: { message: res.message || '登录已过期，请重新登录' }
-        }))
+        redirectToLogin(res.message)
         return Promise.reject(error)
       }
 
       // 正在刷新中，将当前请求加入队列等待
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          addRefreshSubscriber((newToken) => {
-            originalRequest.headers.Authorization = 'Bearer ' + newToken
-            resolve(request(originalRequest))
+        return new Promise((resolve, reject) => {
+          addRefreshSubscriber({
+            resolve: (newToken) => {
+              originalRequest.headers.Authorization = 'Bearer ' + newToken
+              resolve(request(originalRequest))
+            },
+            reject
           })
         })
       }
@@ -91,7 +125,8 @@ request.interceptors.response.use(
       try {
         // 调用刷新接口，携带 Refresh Token
         const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, null, {
-          headers: { Authorization: 'Bearer ' + latestRefreshToken }
+          headers: { Authorization: 'Bearer ' + latestRefreshToken },
+          timeout: 10000
         })
 
         const refreshData = refreshRes.data
@@ -116,11 +151,9 @@ request.interceptors.response.use(
           throw new Error(refreshData.message || '刷新失败')
         }
       } catch (refreshError) {
-        // 刷新失败（包括 refreshToken 过期、网络错误等），清除登录状态
-        userStore.clearToken()
-        window.dispatchEvent(new CustomEvent('show-login', {
-          detail: { message: '登录已过期，请重新登录' }
-        }))
+        // 刷新失败（包括 refreshToken 过期、网络错误等），清除登录状态并放行排队请求
+        onTokenRefreshFailed(refreshError)
+        redirectToLogin('登录已过期，请重新登录')
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

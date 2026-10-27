@@ -7,7 +7,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -92,6 +95,51 @@ public class RedisUtil {
      */
     public Boolean hasKey(String key) {
         return redisTemplate.hasKey(key);
+    }
+
+    /**
+     * 设置 key 的过期时间
+     *
+     * @param key     键
+     * @param timeout 过期时间
+     * @param unit    时间单位
+     * @return true-设置成功（key 存在），false-key 不存在
+     */
+    public Boolean expire(String key, long timeout, TimeUnit unit) {
+        return redisTemplate.expire(key, timeout, unit);
+    }
+
+    /**
+     * key 不存在时才写入，并指定过期时间（SET NX EX）
+     *
+     * @param key     键
+     * @param value   值
+     * @param timeout 过期时间
+     * @param unit    时间单位
+     * @return true-本次写入成功，false-已存在未写入
+     */
+    public Boolean setIfAbsent(String key, String value, long timeout, TimeUnit unit) {
+        return redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit);
+    }
+
+    /**
+     * 批量读取多个 String 值
+     *
+     * @param keys 键集合
+     * @return 与 keys 顺序一致的值列表，不存在的 key 对应 null
+     */
+    public List<String> multiGet(Collection<String> keys) {
+        return redisTemplate.opsForValue().multiGet(keys);
+    }
+
+    /**
+     * 批量删除 key
+     *
+     * @param keys 键
+     * @return 实际删除的数量
+     */
+    public Long delete(String... keys) {
+        return redisTemplate.delete(Arrays.asList(keys));
     }
 
     // ========== Set 操作 ==========
@@ -183,6 +231,66 @@ public class RedisUtil {
      */
     public Long zRem(String key, String... members) {
         return redisTemplate.opsForZSet().remove(key, (Object[]) members);
+    }
+
+    /**
+     * 按分数升序获取 ZSet 范围（带分数）
+     *
+     * @param key   键
+     * @param start 起始索引（0-based）
+     * @param end   结束索引（-1 表示到最后）
+     * @return 成员及分数集合
+     */
+    public Set<ZSetOperations.TypedTuple<String>> zRangeWithScores(String key, long start, long end) {
+        return redisTemplate.opsForZSet().rangeWithScores(key, start, end);
+    }
+
+    /**
+     * 获取成员的分数
+     *
+     * @param key    键
+     * @param member 成员
+     * @return 分数，成员不存在返回 null
+     */
+    public Double zScore(String key, String member) {
+        return redisTemplate.opsForZSet().score(key, member);
+    }
+
+    /**
+     * 获取 ZSet 成员数量
+     *
+     * @param key 键
+     * @return 成员数量
+     */
+    public Long zCard(String key) {
+        return redisTemplate.opsForZSet().zCard(key);
+    }
+
+    /**
+     * 统计分数落在闭区间内的成员数量
+     *
+     * <p>注意分数用的是毫秒时间戳（恒为正），下界传 0 即等价于 -inf，
+     * 避免 Spring Data Redis 把无穷大序列化成 Redis 无法解析的字面量。
+     *
+     * @param key 键
+     * @param min 最小分数（含）
+     * @param max 最大分数（含）
+     * @return 数量
+     */
+    public Long zCount(String key, double min, double max) {
+        return redisTemplate.opsForZSet().count(key, min, max);
+    }
+
+    /**
+     * 移除分数落在闭区间内的成员
+     *
+     * @param key 键
+     * @param min 最小分数（含）
+     * @param max 最大分数（含）
+     * @return 移除数量
+     */
+    public Long zRemRangeByScore(String key, double min, double max) {
+        return redisTemplate.opsForZSet().removeRangeByScore(key, min, max);
     }
 
     // ========== 通用操作 ==========

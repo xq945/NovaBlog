@@ -12,6 +12,11 @@ spring:
   # 激活开发环境
   profiles:
     active: dev
+  # SSE 长连接：默认异步超时 30 秒会把通知流掐断，显式放宽到 30 分钟。
+  # 连接活性由服务端 25 秒一次的心跳维持，不依赖这个超时
+  mvc:
+    async:
+      request-timeout: 1800000
   # JSON 时间格式化（全局统一）
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -85,7 +90,18 @@ jwt:
   # 窗口内的重复刷新复用已签发的新 RT；超窗口仍未携新令牌复现，即判定为泄露并撤销整个会话
   rotation-grace: 60000
 
-# 7. SpringDoc / Knife4j API 文档配置
+# 7. 会话管理配置
+auth:
+  session:
+    # 单账号允许的并发会话数，超出时踢掉最早登录的设备
+    max-count: 5
+    # 活跃度更新节流间隔（秒）。每个请求都写一次活跃时间会白白放大 Redis 写压力，
+    # 节流后「最后活跃」的误差不超过这个间隔
+    touch-interval-seconds: 60
+    # 在线判定窗口（秒）：窗口内带有效 AccessToken 发过请求即视为在线
+    online-window-seconds: 300
+
+# 8. SpringDoc / Knife4j API 文档配置
 knife4j:
   enable: ${KNIFE4J_ENABLE:false}  # 默认关闭，开发时设 KNIFE4J_ENABLE=true
 
@@ -95,12 +111,12 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
-# 8. 日志配置
+# 9. 日志配置
 logging:
   level:
     com.novablog.mapper: debug  # 打印 Mapper SQL
 
-# 9. 阿里云OSS配置
+# 10. 阿里云OSS配置
 aliyun:
   oss:
     endpoint: ${ALIYUN_OSS_ENDPOINT}          # OSS服务端点，如 oss-cn-beijing.aliyuncs.com

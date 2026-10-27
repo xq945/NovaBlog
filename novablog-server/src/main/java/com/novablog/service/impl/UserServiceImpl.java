@@ -7,15 +7,19 @@ import com.novablog.common.exception.BusinessException;
 import com.novablog.entity.Article;
 import com.novablog.entity.User;
 import com.novablog.mapper.ArticleMapper;
+import com.novablog.mapper.UserFollowMapper;
 import com.novablog.mapper.UserMapper;
+import com.novablog.service.SessionService;
 import com.novablog.service.UserService;
 import com.novablog.vo.UserProfileVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
@@ -23,6 +27,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserMapper userMapper;
     private final ArticleMapper articleMapper;
     private final PasswordEncoder passwordEncoder;
+    private final SessionService sessionService;
+    private final UserFollowMapper userFollowMapper;
 
     private static final Pattern PASSWORD_PATTERN = Pattern.compile(
             "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?]).{8,20}$"
@@ -74,16 +80,36 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         String passwordToUpdate = user.getPassword();
+        boolean passwordChanged = false;
         if (password != null && !password.isEmpty()) {
             if (!PASSWORD_PATTERN.matcher(password).matches()) {
                 throw new BusinessException("密码必须为8-20位，且同时包含大写字母、小写字母、数字、特殊符号");
             }
-            passwordToUpdate = passwordEncoder.encode(password);
+            // 重新编码会让哈希变化，但密码本身没变，不该据此踢掉其他设备
+            if (!passwordEncoder.matches(password, user.getPassword())) {
+                passwordToUpdate = passwordEncoder.encode(password);
+                passwordChanged = true;
+            }
         }
 
         String emailToUpdate = (email == null || email.isEmpty()) ? null : email;
         String avatarToUpdate = (avatar == null || avatar.isEmpty()) ? null : avatar;
         userMapper.updateProfile(userId, usernameToUpdate, nickname, emailToUpdate, avatarToUpdate, passwordToUpdate);
+
+        if (passwordChanged) {
+            // 改密后其他设备上的会话应当失效，否则旧密码泄露时改了也没用。
+            // 撤销失败只记日志，不能让密码修改本身回滚
+            try {
+                String currentSid = UserContext.getSid();
+                if (currentSid != null) {
+                    sessionService.kickOthers(userId, currentSid);
+                } else {
+                    sessionService.revokeAll(userId);
+                }
+            } catch (Exception e) {
+                log.warn("修改密码后撤销其他会话失败, userId={}", userId, e);
+            }
+        }
     }
 
     @Override
@@ -105,6 +131,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         vo.setAvatar(user.getAvatar());
         vo.setBio(user.getBio());
         vo.setArticleCount(articleCount);
+        vo.setFollowerCount(user.getFollowerCount() == null ? 0L : user.getFollowerCount());
+        vo.setFollowingCount(user.getFollowingCount() == null ? 0L : user.getFollowingCount());
+
+        // 关注状态顺带在这里返回，前端打开主页就不用再发一次请求
+        Long currentUserId = UserContext.getUserId();
+        boolean followed = currentUserId != null && !currentUserId.equals(userId)
+            && userFollowMapper.exists(currentUserId, userId) > 0;
+        vo.setFollowed(followed);
+
         vo.setJoinTime(user.getCreateTime());
         return vo;
     }

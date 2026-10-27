@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMyArticles, deleteArticle } from '../api/article'
 import { getProfile, updateProfile } from '../api/user'
 import { uploadFile } from '../api/upload'
+import { getSessions, kickSession, kickOtherSessions } from '../api/session'
 import { useUserStore } from '../stores'
 
 const router = useRouter()
@@ -243,16 +244,87 @@ const formatTime = (time) => {
   })
 }
 
+// ========== 登录设备 ==========
+const sessions = ref([])
+const sessionLoading = ref(false)
+
+const fetchSessions = async () => {
+  sessionLoading.value = true
+  try {
+    const res = await getSessions()
+    if (res.code === 200) {
+      sessions.value = res.data || []
+    }
+  } catch (error) {
+    console.error('加载登录设备失败', error)
+  } finally {
+    sessionLoading.value = false
+  }
+}
+
+const handleKickSession = async (row) => {
+  const isSelf = row.current
+  try {
+    await ElMessageBox.confirm(
+      isSelf
+        ? '退出当前设备后需要重新登录，确定继续吗？'
+        : `确定将「${row.deviceName}」下线吗？该设备下一次请求时失效。`,
+      '退出设备',
+      { confirmButtonText: '退出', cancelButtonText: '取消', type: 'warning' }
+    )
+    const res = await kickSession(row.sid)
+    if (res.code === 200) {
+      if (res.data?.current) {
+        // 踢的是本机：直接清理登录态回登录页，不必等下一次请求 401
+        userStore.clearToken()
+        router.push('/login')
+        return
+      }
+      ElMessage.success('该设备已下线')
+      fetchSessions()
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '操作失败')
+    }
+  }
+}
+
+const handleKickOthers = async () => {
+  try {
+    await ElMessageBox.confirm('确定退出其他所有设备吗？', '退出其他设备', {
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const res = await kickOtherSessions()
+    if (res.code === 200) {
+      const count = res.data?.count || 0
+      ElMessage.success(count > 0 ? `已退出 ${count} 台设备` : '没有其他在线设备')
+      fetchSessions()
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '操作失败')
+    }
+  }
+}
+
 onMounted(() => {
   if (!userStore.isLoggedIn()) {
+    // 只派发事件，跳转交给 App.vue 的统一监听器，避免两处导航互相竞争
     window.dispatchEvent(new CustomEvent('show-login', {
       detail: { message: '请先登录' }
     }))
-    router.push('/')
     return
   }
   fetchProfile()
   fetchMyArticles()
+  fetchSessions()
 })
 </script>
 
@@ -443,6 +515,59 @@ onMounted(() => {
           />
         </div>
       </div>
+
+      <!-- 登录设备 -->
+      <div class="article-section">
+        <div class="section-header">
+          <h2 class="section-title">登录设备</h2>
+          <el-button
+            size="small"
+            :disabled="sessions.length <= 1"
+            @click="handleKickOthers"
+          >
+            退出其他设备
+          </el-button>
+        </div>
+
+        <div class="article-table-wrapper" v-loading="sessionLoading">
+          <el-table
+            v-if="sessions.length > 0"
+            :data="sessions"
+            style="width: 100%"
+            border
+          >
+            <el-table-column label="设备" min-width="180">
+              <template #default="{ row }">
+                <span class="device-name">{{ row.deviceName }}</span>
+                <el-tag v-if="row.current" size="small" type="success" class="current-tag">
+                  本机
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="ip" label="IP" min-width="140" />
+            <el-table-column label="登录时间" width="180">
+              <template #default="{ row }">{{ formatTime(row.loginTime) }}</template>
+            </el-table-column>
+            <el-table-column label="最后活跃" width="180">
+              <template #default="{ row }">{{ formatTime(row.lastActive) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="100">
+              <template #default="{ row }">
+                <el-button
+                  type="danger"
+                  size="small"
+                  text
+                  @click="handleKickSession(row)"
+                >
+                  {{ row.current ? '退出登录' : '下线' }}
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-empty v-else description="暂无登录设备" />
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -593,6 +718,25 @@ onMounted(() => {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0 0 16px 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-header .section-title {
+  margin-bottom: 0;
+}
+
+.device-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.current-tag {
+  margin-left: 8px;
 }
 
 .article-table-wrapper {

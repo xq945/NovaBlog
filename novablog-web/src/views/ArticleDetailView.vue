@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getArticleDetail, likeArticle, unlikeArticle, getLikeStatus } from '../api/article'
+import { favoriteArticle, unfavoriteArticle, getFavoriteStatus } from '../api/favorite'
 import { publishComment, getCommentList, deleteComment } from '../api/comment'
 import { useUserStore } from '../stores'
 import { marked } from 'marked'
@@ -28,6 +29,7 @@ const fetchArticle = async () => {
     const res = await getArticleDetail(id)
     if (res.code === 200) {
       article.value = res.data
+      favoriteCount.value = res.data.favoriteCount || 0
     } else {
       ElMessage.error(res.message || '文章不存在')
       router.push('/')
@@ -126,6 +128,74 @@ const handleUnlike = async () => {
     ElMessage.error(error.message || '取消点赞失败')
   } finally {
     likeLoading.value = false
+  }
+}
+
+// ========== 收藏区域 ==========
+const favorited = ref(false)
+const favoriteCount = ref(0)
+const favoriteLoading = ref(false)
+
+const fetchFavoriteStatus = async () => {
+  if (!userStore.userInfo) return
+  const articleId = route.params.id
+  if (!articleId) return
+
+  try {
+    const res = await getFavoriteStatus(articleId)
+    if (res.code === 200) {
+      favorited.value = res.data.favorited
+      favoriteCount.value = res.data.favoriteCount
+    }
+  } catch (error) {
+    console.error('获取收藏状态失败', error)
+  }
+}
+
+const handleFavorite = async () => {
+  if (!userStore.userInfo) {
+    router.push('/login')
+    return
+  }
+  const articleId = route.params.id
+  if (!articleId) return
+
+  favoriteLoading.value = true
+  try {
+    const res = await favoriteArticle(articleId)
+    if (res.code === 200) {
+      // 以后端返回的权威状态为准，不做本地猜数
+      favorited.value = res.data.favorited
+      favoriteCount.value = res.data.favoriteCount
+      ElMessage.success('已收藏')
+    } else {
+      ElMessage.error(res.message || '收藏失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '收藏失败')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
+const handleUnfavorite = async () => {
+  const articleId = route.params.id
+  if (!articleId) return
+
+  favoriteLoading.value = true
+  try {
+    const res = await unfavoriteArticle(articleId)
+    if (res.code === 200) {
+      favorited.value = res.data.favorited
+      favoriteCount.value = res.data.favoriteCount
+      ElMessage.success('已取消收藏')
+    } else {
+      ElMessage.error(res.message || '取消失败')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '取消失败')
+  } finally {
+    favoriteLoading.value = false
   }
 }
 
@@ -262,9 +332,22 @@ const canDelete = (comment) => {
 
 const canReply = () => !!userStore.userInfo
 
+// userInfo 是异步恢复的：直接挂载时请求状态会拿到「未登录」的结果，
+// 等用户信息就绪后再补一次，刷新页面后的点赞/收藏状态才不会丢
+watch(
+  () => userStore.userInfo,
+  (info) => {
+    if (info) {
+      fetchLikeStatus()
+      fetchFavoriteStatus()
+    }
+  }
+)
+
 onMounted(() => {
   fetchArticle()
   fetchLikeStatus()
+  fetchFavoriteStatus()
   fetchComments()
 })
 </script>
@@ -278,9 +361,17 @@ onMounted(() => {
         <div class="article-header">
           <h1 class="article-title">{{ article.title }}</h1>
           <div class="article-meta">
-            <span class="meta-item">
+            <span
+              v-if="article.author?.id"
+              class="meta-item author-link"
+              @click="router.push(`/user/${article.author.id}`)"
+            >
               <el-icon><User /></el-icon>
-              {{ article.author?.nickname || '匿名' }}
+              {{ article.author.nickname || '匿名' }}
+            </span>
+            <span v-else class="meta-item">
+              <el-icon><User /></el-icon>
+              匿名
             </span>
             <span class="meta-item" v-if="article.category">
               <el-icon><Folder /></el-icon>
@@ -345,6 +436,43 @@ onMounted(() => {
                 <span class="like-count">{{ likeCount }}</span>
               </el-button>
             </template>
+
+            <!-- 收藏按钮 -->
+            <el-button
+              v-if="!userStore.userInfo"
+              type="default"
+              size="large"
+              class="like-btn"
+              @click="router.push('/login')"
+            >
+              <el-icon><Collection /></el-icon>
+              <span>收藏</span>
+              <span class="like-count">{{ favoriteCount }}</span>
+            </el-button>
+            <el-button
+              v-else-if="!favorited"
+              type="default"
+              size="large"
+              class="like-btn"
+              :loading="favoriteLoading"
+              @click="handleFavorite"
+            >
+              <el-icon><Collection /></el-icon>
+              <span>收藏</span>
+              <span class="like-count">{{ favoriteCount }}</span>
+            </el-button>
+            <el-button
+              v-else
+              type="primary"
+              size="large"
+              class="like-btn liked"
+              :loading="favoriteLoading"
+              @click="handleUnfavorite"
+            >
+              <el-icon><CollectionTag /></el-icon>
+              <span>已收藏</span>
+              <span class="like-count">{{ favoriteCount }}</span>
+            </el-button>
           </div>
           <div class="view-count">
             <el-icon><View /></el-icon>
@@ -536,6 +664,15 @@ onMounted(() => {
   gap: 4px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
+}
+
+.author-link {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.author-link:hover {
+  color: var(--nb-accent);
 }
 
 .article-tags {

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.mapper.ArticleFavoriteMapper">
+
+    <!-- 唯一键 (user_id, article_id) 冲突时静默跳过，由返回值区分新增与重复 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO article_favorite (user_id, article_id)
+        VALUES (#{userId}, #{articleId})
+    </insert>
+
+    <delete id="deleteByUserAndArticle">
+        DELETE FROM article_favorite
+        WHERE user_id = #{userId} AND article_id = #{articleId}
+    </delete>
+
+    <select id="exists" resultType="int">
+        SELECT COUNT(*) FROM article_favorite
+        WHERE user_id = #{userId} AND article_id = #{articleId}
+    </select>
+
+    <!-- 我的收藏：只展示仍已发布的文章，按收藏时间倒序 -->
+    <select id="findFavoriteArticles"
+            resultMap="com.novablog.mapper.ArticleMapper.articleVOResultMap">
+        SELECT a.id, a.title, a.summary, a.cover,
+               a.view_count, a.like_count, a.favorite_count, a.status, a.create_time,
+               u.id AS author_id, u.nickname AS author_nickname, u.avatar AS author_avatar,
+               c.id AS category_id, c.name AS category_name
+        FROM article_favorite f
+        JOIN article a ON a.id = f.article_id AND a.status = 1
+        LEFT JOIN `user` u ON u.id = a.user_id
+        LEFT JOIN category c ON c.id = a.category_id
+        WHERE f.user_id = #{userId}
+        ORDER BY f.create_time DESC, f.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findArticleIdsByUser" resultType="long">
+        SELECT article_id FROM article_favorite WHERE user_id = #{userId}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*)
+        FROM article_favorite f
+        JOIN article a ON a.id = f.article_id AND a.status = 1
+        WHERE f.user_id = #{userId}
+    </select>
+</mapper>

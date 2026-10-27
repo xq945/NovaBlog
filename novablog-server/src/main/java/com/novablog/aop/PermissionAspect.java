@@ -1,6 +1,5 @@
 package com.novablog.aop;
 
-import com.novablog.common.UserContext;
 import com.novablog.common.annotation.RequireAdmin;
 import com.novablog.common.annotation.RequirePermission;
 import com.novablog.common.constant.RoleConstant;
@@ -24,13 +23,22 @@ import java.util.Collection;
 public class PermissionAspect {
 
     /**
-     * 校验当前用户是否为管理员（旧注解，过渡期后移除）。
+     * 校验当前用户是否为管理员。
      * 支持方法级别和类级别的 @RequireAdmin。
+     *
+     * <p>以 SecurityContext 中的 authority 为准，而不是 UserContext 里的单个角色名：
+     * 角色查询没有 ORDER BY，多角色用户的角色顺序无法保证，按第一个角色判断会误判。
      */
     @Before("@annotation(requireAdmin) || @within(requireAdmin)")
     public void checkAdmin(RequireAdmin requireAdmin) {
-        String role = UserContext.getRole();
-        if (!RoleConstant.ADMIN.equals(role)) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new BusinessException(401, "请先登录");
+        }
+        String adminAuthority = "ROLE_" + RoleConstant.ADMIN;
+        boolean isAdmin = authentication.getAuthorities().stream()
+            .anyMatch(a -> adminAuthority.equals(a.getAuthority()));
+        if (!isAdmin) {
             throw new BusinessException(403, "无权访问");
         }
     }

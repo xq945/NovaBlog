@@ -42,6 +42,11 @@ public class ArticleVO {
     private Integer likeCount;
 
     /**
+     * 收藏数
+     */
+    private Integer favoriteCount;
+
+    /**
      * 状态：1-已发布 0-草稿
      */
     private Integer status;

@@ -38,6 +38,16 @@ public interface ArticleMapper extends BaseMapper<Article> {
 
     int updateLikeCount(@Param("id") Long id, @Param("likeCount") Long likeCount);
 
+    /**
+     * 收藏数加一。原子 SQL，不做 read-modify-write
+     */
+    int incrementFavoriteCount(@Param("id") Long id);
+
+    /**
+     * 收藏数减一，用 GREATEST 兜底，避免并发下减成负数
+     */
+    int decrementFavoriteCount(@Param("id") Long id);
+
     int batchUpdateViewCount(@Param("articleIdList") List<Long> articleIdList,
                               @Param("viewCountList") List<Long> viewCountList);
 

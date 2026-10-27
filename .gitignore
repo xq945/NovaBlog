@@ -30,3 +30,7 @@ design/
 
 # Claude Code instructions (project-level)
 CLAUDE.md
+
+# 个人简历（含手机号邮箱，不入库）与 Office 临时文件
+张广-*.docx
+~$*

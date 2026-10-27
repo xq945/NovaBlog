@@ -11,10 +11,13 @@ import com.novablog.dto.request.RegisterDTO;
 import com.novablog.dto.request.UpdateProfileDTO;
 import com.novablog.dto.request.UserStatusDTO;
 import com.novablog.entity.User;
+import com.novablog.mapper.ArticleFavoriteMapper;
 import com.novablog.mapper.ArticleMapper;
+import com.novablog.mapper.UserFollowMapper;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.ArticleService;
 import com.novablog.service.AuthService;
+import com.novablog.service.SessionService;
 import com.novablog.service.UserService;
 import com.novablog.convert.UserVOAssembler;
 import com.novablog.vo.AdminUserVO;
@@ -54,6 +57,9 @@ public class UserController {
     private final UserMapper userMapper;
     private final ArticleService articleService;
     private final ArticleMapper articleMapper;
+    private final SessionService sessionService;
+    private final ArticleFavoriteMapper articleFavoriteMapper;
+    private final UserFollowMapper userFollowMapper;
 
     /**
      * 用户注册，委托给 AuthService
@@ -214,7 +220,39 @@ public class UserController {
 
         int deletedCount = 0;
         if (!finalIds.isEmpty()) {
+            // 删用户前先记下社交关系：关系行会随外键级联删除，
+            // 删完之后就再也找不到「该给谁减计数」了
+            Map<Long, List<Long>> favoriteArticles = new HashMap<>();
+            Map<Long, List<Long>> followees = new HashMap<>();
+            Map<Long, List<Long>> followers = new HashMap<>();
+            for (Long id : finalIds) {
+                favoriteArticles.put(id, articleFavoriteMapper.findArticleIdsByUser(id));
+                followees.put(id, userFollowMapper.findFolloweeIdsByFollower(id));
+                followers.put(id, userFollowMapper.findFollowerIdsByFollowee(id));
+            }
+
             deletedCount = userMapper.deleteByIds(finalIds);
+
+            Set<Long> deletedSet = new HashSet<>(finalIds);
+            for (Long id : finalIds) {
+                for (Long articleId : favoriteArticles.getOrDefault(id, List.of())) {
+                    articleMapper.decrementFavoriteCount(articleId);
+                }
+                for (Long followeeId : followees.getOrDefault(id, List.of())) {
+                    if (!deletedSet.contains(followeeId)) {
+                        userMapper.decrementFollowerCount(followeeId);
+                    }
+                }
+                for (Long followerId : followers.getOrDefault(id, List.of())) {
+                    if (!deletedSet.contains(followerId)) {
+                        userMapper.decrementFollowingCount(followerId);
+                    }
+                }
+            }
+
+            // 用户已不存在，残留令牌会在过滤器里被拦下；
+            // 这里再清掉会话与在线记录，避免索引里堆着无主的 sid
+            finalIds.forEach(sessionService::revokeAll);
         }
 
         int skippedCount = distinctIds.size() - deletedCount;
@@ -257,6 +295,11 @@ public class UserController {
             throw new BusinessException(404, "用户不存在");
         }
         userMapper.updateStatus(dto.getUserId(), dto.getStatus());
+        if (dto.getStatus() == 0) {
+            // 禁用后立即撤销全部会话。只在请求时校验 isEnabled 是不够的：
+            // 管理员重新启用后，未过期的旧令牌会随之一块复活
+            sessionService.revokeAll(dto.getUserId());
+        }
         return Result.success();
     }
 

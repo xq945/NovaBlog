@@ -26,6 +26,8 @@ public class Article {
 
     private Long likeCount;
 
+    private Long favoriteCount;
+
     private Long userId;
 
     private Long categoryId;

@@ -32,6 +32,10 @@ public class User {
 
     private Integer muted;
 
+    private Long followerCount;
+
+    private Long followingCount;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

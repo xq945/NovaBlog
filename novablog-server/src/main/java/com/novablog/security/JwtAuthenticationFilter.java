@@ -1,7 +1,9 @@
 package com.novablog.security;
 
 import com.novablog.common.UserContext;
+import com.novablog.service.SessionService;
 import com.novablog.service.TokenBlacklistService;
+import com.novablog.util.RequestUtils;
 import java.util.List;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -10,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -22,6 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsServiceImpl userDetailsService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final SessionService sessionService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -58,8 +62,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 会话级失效：登出或判定令牌泄露后，该会话的全部令牌立即作废
-        if (tokenBlacklistService.isSessionRevoked(jwtTokenProvider.getSid(token))) {
+        String sid = jwtTokenProvider.getSid(token);
+
+        // 会话级失效：登出或判定令牌泄露后，该会话的全部令牌立即作废。
+        // 标记原因是为了让前端知道「刷新也救不回来」，不必再白跑一次刷新
+        if (tokenBlacklistService.isSessionRevoked(sid)) {
+            request.setAttribute(AuthenticationEntryPointImpl.ATTR_REJECT_REASON,
+                AuthenticationEntryPointImpl.REASON_SESSION_REVOKED);
             return;
         }
 
@@ -68,13 +77,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 加载用户信息
+        // 加载用户信息。用户已被删除时按未认证处理，
+        // 异常若冒泡会绕开安全链的异常翻译，最终变成 500
         Long userId = jwtTokenProvider.getUserId(token);
-        SecurityUserDetails userDetails =
-            (SecurityUserDetails) userDetailsService.loadUserByUserId(userId);
+        SecurityUserDetails userDetails;
+        try {
+            userDetails = (SecurityUserDetails) userDetailsService.loadUserByUserId(userId);
+        } catch (UsernameNotFoundException e) {
+            return;
+        }
 
         // 校验用户状态
         if (!userDetails.isEnabled()) {
+            request.setAttribute(AuthenticationEntryPointImpl.ATTR_REJECT_REASON,
+                AuthenticationEntryPointImpl.REASON_USER_DISABLED);
             return;
         }
 
@@ -90,7 +106,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             .toList();
         UserContext.set(userDetails.getUserId(),
                         userDetails.getUsername(),
-                        roles);
+                        roles,
+                        sid);
+
+        // 活跃度更新：内部有 60 秒节流，且吞掉所有异常，
+        // 会话中心故障不能让正常请求被拖垮
+        sessionService.touch(userId, sid,
+            RequestUtils.getClientIp(request), RequestUtils.getUserAgent(request));
     }
 
     private String extractToken(HttpServletRequest request) {

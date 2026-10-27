@@ -3,15 +3,18 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores'
+import { useNotificationStore } from '../stores/notification'
 import { logout } from '../api/user'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 
 const isLoggedIn = computed(() => userStore.isLoggedIn())
 const isAdmin = computed(() => userStore.userInfo?.role === 'ADMIN')
 const nickname = computed(() => userStore.userInfo?.nickname || '')
+const unreadCount = computed(() => notificationStore.unreadCount)
 
 const navItems = computed(() => {
   const items = [
@@ -22,6 +25,8 @@ const navItems = computed(() => {
   if (isLoggedIn.value) {
     items.push(
       { name: '写文章', path: '/article/create', icon: 'Plus' },
+      { name: '我的收藏', path: '/favorites', icon: 'Star' },
+      { name: '通知', path: '/notifications', icon: 'Bell' },
       { name: '个人中心', path: '/profile', icon: 'User' }
     )
   }
@@ -75,7 +80,18 @@ const goToLogin = () => {
         :class="{ active: isActive(item.path) }"
         @click="navigate(item.path)"
       >
-        <el-icon>
+        <el-badge
+          v-if="item.path === '/notifications'"
+          :value="unreadCount"
+          :max="99"
+          :hidden="unreadCount === 0"
+          class="nav-badge"
+        >
+          <el-icon>
+            <component :is="item.icon" />
+          </el-icon>
+        </el-badge>
+        <el-icon v-else>
           <component :is="item.icon" />
         </el-icon>
         <span>{{ item.name }}</span>
@@ -180,6 +196,20 @@ const goToLogin = () => {
 
 .sidebar-item .el-icon {
   font-size: 1.1rem;
+}
+
+/* 通知角标：只包裹图标，不占额外的布局宽度 */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-badge :deep(.el-badge__content) {
+  height: 15px;
+  line-height: 13px;
+  padding: 0 4px;
+  font-size: 10px;
+  border: none;
 }
 
 .sidebar-footer {

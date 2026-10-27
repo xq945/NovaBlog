@@ -17,7 +17,9 @@ import com.novablog.mapper.UserMapper;
 import com.novablog.mapper.UserRoleMapper;
 import com.novablog.security.JwtTokenProvider;
 import com.novablog.service.AuthService;
+import com.novablog.service.SessionService;
 import com.novablog.service.TokenBlacklistService;
+import com.novablog.util.RequestUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final TokenBlacklistService tokenBlacklistService;
+    private final SessionService sessionService;
     private final RoleMapper roleMapper;
     private final LoginLogMapper loginLogMapper;
     private final UserRoleMapper userRoleMapper;
@@ -165,6 +168,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         List<String> authorities = buildAuthorities(userId);
+        HttpServletRequest request = RequestUtils.currentRequest();
+        String ip = RequestUtils.getClientIp(request);
+        String ua = RequestUtils.getUserAgent(request);
 
         // 该 RT 已被消费过（轮换走了），它再次出现只有两种可能
         if (tokenBlacklistService.isBlacklisted(jti)) {
@@ -172,6 +178,7 @@ public class AuthServiceImpl implements AuthService {
             if (rotated != null) {
                 // 一、仍在宽限窗口内：多个标签页共享同一个 AT，会几乎同时刷新，
                 //     直接复用已签发的那张 RT，让并发方收敛到同一个令牌
+                sessionService.onRefresh(userId, sid, ip, ua);
                 return buildRefreshResult(user, authorities, sid, rotated);
             }
             // 二、已超出宽限窗口：合法客户端手里早已是新令牌，旧令牌重现即为泄露，
@@ -192,6 +199,7 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         tokenBlacklistService.blacklist(jti, jwtTokenProvider.getRemainingMillis(refreshToken));
+        sessionService.onRefresh(userId, sid, ip, ua);
 
         return buildRefreshResult(user, authorities, sid, newRefreshToken);
     }
@@ -200,23 +208,31 @@ public class AuthServiceImpl implements AuthService {
     public void logout(String accessToken, String refreshToken) {
         // 优先用 AT 的 sid；AT 已过期或被篡改时回退到 RT
         String sid = resolveSid(accessToken);
+        Long userId = resolveUserId(accessToken);
         if (sid == null) {
             sid = resolveSid(refreshToken);
+            userId = resolveUserId(refreshToken);
         }
 
         if (sid != null) {
-            // 撤销标记的存活时长以 RT 剩余有效期为准，RT 不可用时保守按完整有效期留存
-            long remaining = resolveRemaining(refreshToken);
-            tokenBlacklistService.revokeSession(sid,
-                remaining > 0 ? remaining : jwtTokenProvider.getRefreshExpirationMillis());
+            // 撤销标记一律覆盖完整的 RT 有效期。RT 是轮换的，前端持有的可能是
+            // 轮换前的旧令牌，按它的剩余时间写标记会先于最新 RT 过期——
+            // 标记消失后同一 sid 下的新 RT 仍然可用，会话就在登出后复活了
+            tokenBlacklistService.revokeSession(sid, jwtTokenProvider.getRefreshExpirationMillis());
+            sessionService.removeSession(userId, sid);
             return;
         }
 
-        // 兜底：不含 sid 的存量令牌无法按会话撤销，退化为单令牌拉黑，
-        // 待存量令牌自然过期（AT 2 小时、RT 7 天）后此分支即失效
-        long remaining = resolveRemaining(accessToken);
-        if (remaining > 0) {
-            tokenBlacklistService.blacklist(jwtTokenProvider.getJti(accessToken), remaining);
+        // 兜底：不含 sid 的存量令牌无法按会话撤销，退化为单令牌拉黑。
+        // AT 与 RT 都要拉黑——只拉黑 AT 的话，AT 过期后 RT 仍能继续刷新，
+        // 待存量令牌自然过期后此分支即失效
+        long accessRemaining = resolveRemaining(accessToken);
+        if (accessRemaining > 0) {
+            tokenBlacklistService.blacklist(jwtTokenProvider.getJti(accessToken), accessRemaining);
+        }
+        long refreshRemaining = resolveRemaining(refreshToken);
+        if (refreshRemaining > 0) {
+            tokenBlacklistService.blacklist(jwtTokenProvider.getJti(refreshToken), refreshRemaining);
         }
     }
 
@@ -228,6 +244,16 @@ public class AuthServiceImpl implements AuthService {
             return null;
         }
         return jwtTokenProvider.getSid(token);
+    }
+
+    /**
+     * 安全解析 Token 所属用户，无法解析时返回 null
+     */
+    private Long resolveUserId(String token) {
+        if (token == null || !jwtTokenProvider.validateToken(token)) {
+            return null;
+        }
+        return jwtTokenProvider.getUserId(token);
     }
 
     /**
@@ -262,6 +288,11 @@ public class AuthServiceImpl implements AuthService {
         result.put("refreshToken", jwtTokenProvider.createRefreshToken(user.getId(), sid));
         result.put("expiresIn", jwtTokenProvider.getAccessExpirationSeconds());
         result.put("userInfo", buildUserInfo(user));
+
+        // 登记登录设备。令牌已经签发，这里失败只告警，不能让用户登录不了
+        HttpServletRequest request = RequestUtils.currentRequest();
+        sessionService.registerSession(user.getId(), sid,
+            RequestUtils.getClientIp(request), RequestUtils.getUserAgent(request));
         return result;
     }
 
@@ -316,23 +347,12 @@ public class AuthServiceImpl implements AuthService {
         log.setSuccess(success ? 1 : 0);
         log.setReason(reason != null ? reason : "");
 
-        // 从请求上下文获取 IP
-        try {
-            HttpServletRequest request = ((HttpServletRequest)
-                org.springframework.web.context.request.RequestContextHolder
-                    .currentRequestAttributes()
-                    .resolveReference(org.springframework.web.context.request.RequestAttributes.REFERENCE_REQUEST));
-            if (request != null) {
-                String ip = request.getHeader("X-Forwarded-For");
-                if (ip == null || ip.isEmpty()) {
-                    ip = request.getRemoteAddr();
-                }
-                log.setIp(ip);
-                String ua = request.getHeader("User-Agent");
-                log.setUserAgent(ua != null && ua.length() > 500 ? ua.substring(0, 500) : ua);
-            }
-        } catch (Exception ignored) {
-            // 非 HTTP 上下文（如测试）忽略
+        // 从请求上下文获取 IP 与 UA，统一走 RequestUtils，
+        // 避免登录日志里的 IP 与会话记录里的 IP 取法不一致
+        HttpServletRequest request = RequestUtils.currentRequest();
+        if (request != null) {
+            log.setIp(RequestUtils.getClientIp(request));
+            log.setUserAgent(RequestUtils.getUserAgent(request));
         }
 
         loginLogMapper.insert(log);

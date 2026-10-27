@@ -25,6 +25,9 @@ CREATE TABLE `user` (
     `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
     `role` VARCHAR(10) NOT NULL DEFAULT 'USER' COMMENT '角色：ADMIN/USER',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-启用 0-禁用',
+    `muted` TINYINT NOT NULL DEFAULT 0 COMMENT '是否禁言：1-禁言 0-正常',
+    `follower_count` BIGINT NOT NULL DEFAULT 0 COMMENT '粉丝数',
+    `following_count` BIGINT NOT NULL DEFAULT 0 COMMENT '关注数',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
@@ -70,6 +73,7 @@ CREATE TABLE `article` (
     `cover` VARCHAR(500) DEFAULT NULL COMMENT '封面图URL',
     `view_count` BIGINT NOT NULL DEFAULT 0 COMMENT '浏览量',
     `like_count` BIGINT NOT NULL DEFAULT 0 COMMENT '点赞数',
+    `favorite_count` BIGINT NOT NULL DEFAULT 0 COMMENT '收藏数',
     `user_id` BIGINT NOT NULL COMMENT '作者ID',
     `category_id` BIGINT NOT NULL COMMENT '分类ID',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-已发布 0-草稿',
@@ -154,6 +158,53 @@ CREATE TABLE `chat_message` (
     KEY `idx_message_session_create_time` (`session_id`, `create_time`) COMMENT '会话消息按时间排序'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 对话消息表';
 
+-- 10. 文章收藏表
+DROP TABLE IF EXISTS `article_favorite`;
+CREATE TABLE `article_favorite` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '收藏者ID',
+    `article_id` BIGINT NOT NULL COMMENT '文章ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_favorite_user_article` (`user_id`, `article_id`) COMMENT '幂等：同一用户重复收藏只有一条',
+    KEY `idx_favorite_article_id` (`article_id`) COMMENT '按文章统计',
+    KEY `idx_favorite_user_time` (`user_id`, `create_time`) COMMENT '我的收藏列表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章收藏表';
+
+-- 11. 用户关注表
+DROP TABLE IF EXISTS `user_follow`;
+CREATE TABLE `user_follow` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `follower_id` BIGINT NOT NULL COMMENT '关注者ID',
+    `followee_id` BIGINT NOT NULL COMMENT '被关注者ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '关注时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_follow_follower_followee` (`follower_id`, `followee_id`) COMMENT '幂等：重复关注只有一条',
+    KEY `idx_follow_follower_time` (`follower_id`, `create_time`) COMMENT '我的关注列表',
+    KEY `idx_follow_followee_time` (`followee_id`, `create_time`) COMMENT '粉丝列表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户关注表';
+
+-- 12. 站内通知表
+DROP TABLE IF EXISTS `notification`;
+CREATE TABLE `notification` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `receiver_id` BIGINT NOT NULL COMMENT '接收人ID',
+    `sender_id` BIGINT DEFAULT NULL COMMENT '触发人ID（系统通知为空）',
+    `type` VARCHAR(20) NOT NULL COMMENT '类型：LIKE/COMMENT/REPLY/FOLLOW/SYSTEM',
+    `target_type` VARCHAR(20) NOT NULL COMMENT '目标类型：ARTICLE/COMMENT/USER',
+    `target_id` BIGINT DEFAULT NULL COMMENT '目标ID（多态，不加外键）',
+    `article_id` BIGINT DEFAULT NULL COMMENT '关联文章ID（用于跳转）',
+    `content` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '通知文案',
+    `is_read` TINYINT NOT NULL DEFAULT 0 COMMENT '是否已读：1-已读 0-未读',
+    `read_time` DATETIME DEFAULT NULL COMMENT '已读时间',
+    `dedup_key` VARCHAR(100) DEFAULT NULL COMMENT '去重键，点赞/关注填写，评论留空',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_notification_receiver_dedup` (`receiver_id`, `dedup_key`) COMMENT '可空唯一键：评论为 NULL 不参与去重',
+    KEY `idx_notification_receiver_read_time` (`receiver_id`, `is_read`, `create_time`) COMMENT '未读列表',
+    KEY `idx_notification_receiver_time` (`receiver_id`, `create_time`) COMMENT '全部列表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='站内通知表';
+
 -- ============================================
 -- 外键约束（保证数据完整性）
 -- ============================================
@@ -173,6 +224,22 @@ ALTER TABLE `comment`
     ADD CONSTRAINT `fk_comment_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE RESTRICT,
     ADD CONSTRAINT `fk_comment_parent` FOREIGN KEY (`parent_id`) REFERENCES `comment` (`id`) ON DELETE CASCADE,
     ADD CONSTRAINT `fk_comment_reply_to` FOREIGN KEY (`reply_to_id`) REFERENCES `user` (`id`) ON DELETE SET NULL;
+
+-- 文章收藏表外键
+ALTER TABLE `article_favorite`
+    ADD CONSTRAINT `fk_favorite_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_favorite_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
+
+-- 用户关注表外键
+ALTER TABLE `user_follow`
+    ADD CONSTRAINT `fk_follow_follower` FOREIGN KEY (`follower_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_follow_followee` FOREIGN KEY (`followee_id`) REFERENCES `user` (`id`) ON DELETE CASCADE;
+
+-- 站内通知表外键
+ALTER TABLE `notification`
+    ADD CONSTRAINT `fk_notification_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_notification_sender` FOREIGN KEY (`sender_id`) REFERENCES `user` (`id`) ON DELETE SET NULL,
+    ADD CONSTRAINT `fk_notification_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
 
 -- AI 对话会话表外键
 ALTER TABLE `chat_session`

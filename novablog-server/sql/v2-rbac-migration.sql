@@ -93,6 +93,22 @@ DELIMITER ;
 CALL `add_bio_column`();
 DROP PROCEDURE IF EXISTS `add_bio_column`;
 
+-- 8. 用户表增加 muted 字段（User 实体已声明该字段，此前缺少列会令所有用户查询报错）
+DROP PROCEDURE IF EXISTS `add_muted_column`;
+DELIMITER //
+CREATE PROCEDURE `add_muted_column`()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME = 'muted'
+    ) THEN
+        ALTER TABLE `user` ADD COLUMN `muted` TINYINT NOT NULL DEFAULT 0 COMMENT '是否禁言：1-禁言 0-正常' AFTER `status`;
+    END IF;
+END //
+DELIMITER ;
+CALL `add_muted_column`();
+DROP PROCEDURE IF EXISTS `add_muted_column`;
+
 -- ============================================================
 -- 种子数据
 -- ============================================================

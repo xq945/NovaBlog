@@ -15,6 +15,7 @@ import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.CommentMapper;
 import com.novablog.mapper.UserMapper;
 import com.novablog.service.CommentService;
+import com.novablog.service.NotificationService;
 import com.novablog.vo.AdminCommentVO;
 import com.novablog.vo.CommentVO;
 import com.novablog.vo.UserVO;
@@ -39,6 +40,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     private final CommentMapper commentMapper;
     private final UserMapper userMapper;
     private final ArticleMapper articleMapper;
+    private final NotificationService notificationService;
 
     /**
      * 评论内容最大长度
@@ -46,6 +48,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     private static final int CONTENT_MAX_LENGTH = 500;
 
     @Override
+    @Transactional
     @AutoFillTime(OperationType.INSERT)
     public CommentVO publish(CommentDTO dto) {
         // 1. 参数校验
@@ -118,6 +121,16 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         comment.setParentId(parentId);
         comment.setReplyToId(replyToId);
         commentMapper.insert(comment);
+
+        // 5.1 通知：一级评论通知文章作者，回复通知被回复者。
+        //     两种都跳过「自己操作自己」，回复文章作者时不会重复发两条
+        if (parentId == null) {
+            notificationService.notifyComment(article.getUserId(), comment.getUserId(),
+                articleId, article.getTitle(), false);
+        } else if (replyToId != null) {
+            notificationService.notifyComment(replyToId, comment.getUserId(),
+                articleId, article.getTitle(), true);
+        }
 
         // 重新查询获取数据库生成的 createTime
         Comment inserted = commentMapper.selectById(comment.getId());

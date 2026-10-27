@@ -22,5 +22,20 @@ public class UserProfileVO {
 
     private Long articleCount;
 
+    /**
+     * 粉丝数
+     */
+    private Long followerCount;
+
+    /**
+     * 关注数
+     */
+    private Long followingCount;
+
+    /**
+     * 当前登录用户是否已关注该用户；匿名或自己看自己为 false
+     */
+    private Boolean followed;
+
     private LocalDateTime joinTime;
 }

@@ -36,4 +36,12 @@ public interface UserMapper extends BaseMapper<User> {
     List<Long> findUserIdsWithArticles(@Param("ids") List<Long> ids);
 
     List<Long> findUserIdsWithComments(@Param("ids") List<Long> ids);
+
+    int incrementFollowerCount(@Param("id") Long id);
+
+    int decrementFollowerCount(@Param("id") Long id);
+
+    int incrementFollowingCount(@Param("id") Long id);
+
+    int decrementFollowingCount(@Param("id") Long id);
 }

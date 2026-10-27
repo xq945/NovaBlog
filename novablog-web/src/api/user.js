@@ -64,6 +64,30 @@ export function updateProfile(data) {
 }
 
 /**
+ * 公开用户主页信息（含粉丝数、关注数、是否已关注）
+ * @param {number} id - 用户ID
+ */
+export function getUserProfile(id) {
+  return request({
+    url: `/user/${id}`,
+    method: 'get'
+  })
+}
+
+/**
+ * 用户主页的文章列表
+ * @param {number} id - 用户ID
+ * @param {Object} params - { page, size }
+ */
+export function getUserArticles(id, params) {
+  return request({
+    url: `/user/${id}/articles`,
+    method: 'get',
+    params
+  })
+}
+
+/**
  * 管理员查询用户列表
  * @param {Object} params - { page, size, keyword }
  */

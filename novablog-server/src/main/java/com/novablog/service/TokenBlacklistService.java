@@ -111,18 +111,25 @@ public class TokenBlacklistService {
     /**
      * 撤销整个会话，该 sid 下的全部 AT 与 RT 立即失效
      *
+     * <p>TTL 必须覆盖该会话令牌家族的最长剩余有效期。RT 是轮换的，调用方手里那张
+     * 可能已经是旧令牌、剩余时间很短，因此这里由调用方统一传入完整有效期，
+     * 否则撤销标记会先于最新 RT 过期，会话在登出后复活。
+     *
      * @param sid       会话标识
-     * @param ttlMillis 撤销标记的存活时长，需覆盖该会话令牌的最长剩余有效期
+     * @param ttlMillis 撤销标记的存活时长，应覆盖该会话令牌的最长剩余有效期
+     * @return true-撤销标记写入成功；false-参数非法或 Redis 写入失败
      */
-    public void revokeSession(String sid, long ttlMillis) {
+    public boolean revokeSession(String sid, long ttlMillis) {
         if (sid == null || ttlMillis <= 0) {
-            return;
+            return false;
         }
         try {
             redisUtil.setWithExpire(RedisKeyConstant.tokenSession(sid),
                 String.valueOf(System.currentTimeMillis()), ttlMillis, TimeUnit.MILLISECONDS);
+            return true;
         } catch (Exception e) {
             log.warn("撤销会话失败, sid={}", sid, e);
+            return false;
         }
     }
 

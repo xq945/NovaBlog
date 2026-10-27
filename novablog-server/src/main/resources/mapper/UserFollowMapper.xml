@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.mapper.UserFollowMapper">
+
+    <!-- 唯一键 (follower_id, followee_id) 冲突时静默跳过，由返回值区分新增与重复 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO user_follow (follower_id, followee_id)
+        VALUES (#{followerId}, #{followeeId})
+    </insert>
+
+    <delete id="deleteFollow">
+        DELETE FROM user_follow
+        WHERE follower_id = #{followerId} AND followee_id = #{followeeId}
+    </delete>
+
+    <select id="exists" resultType="int">
+        SELECT COUNT(*) FROM user_follow
+        WHERE follower_id = #{followerId} AND followee_id = #{followeeId}
+    </select>
+
+    <select id="findFolloweeIdsByFollower" resultType="long">
+        SELECT followee_id FROM user_follow WHERE follower_id = #{followerId}
+    </select>
+
+    <select id="findFollowerIdsByFollowee" resultType="long">
+        SELECT follower_id FROM user_follow WHERE followee_id = #{followeeId}
+    </select>
+</mapper>

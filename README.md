@@ -109,6 +109,8 @@ cd novablog-server
 mysql -u root -p < sql/init.sql
 # 建 RBAC 权限表与登录、操作日志表，并把已有的 user.role 迁移到 user_role
 mysql -u root -p novablog < sql/v2-rbac-migration.sql
+# 建收藏、关注、通知表，并给 user / article 补计数字段
+mysql -u root -p novablog < sql/v3-social-migration.sql
 ```
 
 如果需要体验带有模拟数据的完整效果，可继续导入种子数据：
@@ -184,10 +186,13 @@ npm run dev
 - **文章导入**：上传 md / txt / docx / pdf 文档，自动解析出标题、正文与摘要填入草稿
 - **评论模块**：发表评论、嵌套评论、回复
 - **分类/标签**：支持筛选与检索，默认面经方向
-- **Redis 功能**：浏览量统计、点赞、热门文章排行
-- **个人中心**：信息修改、头像上传、我的文章、用户名/密码修改
-- **用户主页**：公开的用户资料页与文章列表
-- **后台管理**：用户/文章/评论/分类/标签管理，支持用户关键词查询与批量删除；角色、权限的配置与分配
+- **文章互动**：点赞、收藏、我的收藏列表；收藏关系与计数落库，Redis 不承担正本职责
+- **用户关注**：关注/取关、粉丝数与关注数，公开用户主页
+- **站内通知**：点赞、评论、回复、关注四类消息；未读数、单条/全部已读，SSE 实时推送
+- **Redis 功能**：浏览量统计、点赞、热门文章排行、在线用户统计、未读数短期缓存
+- **个人中心**：信息修改、头像上传、我的文章、登录设备管理、用户名/密码修改
+- **用户主页**：公开的用户资料页、关注按钮与文章列表
+- **后台管理**：用户/文章/评论/分类/标签管理，支持用户关键词查询与批量删除；在线用户列表与强制下线；角色、权限的配置与分配
 - **操作审计**：登录日志（含失败原因、IP、UA）与操作日志，增删改接口通过 `@LogOperation` 注解自动记录
 - **文件上传**：头像、文章封面，存储于阿里云 OSS
 
@@ -251,6 +256,9 @@ Markdown 渲染正文、点赞按钮与嵌套评论系统。
 | 刷新令牌 | `POST /auth/refresh` | 用 RefreshToken 换发新的一对令牌，RefreshToken 同步轮换 |
 | 登出 | `POST /auth/logout` | 撤销当前会话，该会话的 AT 与 RT 一并失效 |
 | 当前用户 | `GET /auth/profile` | 需携带有效 AccessToken |
+| 登录设备 | `GET /auth/sessions` | 列出该账号全部活跃设备，标记本机 |
+| 退出指定设备 | `DELETE /auth/sessions/{sid}` | 被踢设备下一次请求时失效 |
+| 退出其他设备 | `DELETE /auth/sessions/others` | 保留本机，撤销其余全部会话 |
 
 > `POST /user/login` 与 `POST /user/register` 是等价的兼容入口，内部委托同一套 `AuthService` 实现。
 
@@ -271,6 +279,21 @@ Markdown 渲染正文、点赞按钮与嵌套评论系统。
 | 标签 | `POST /tag` | `GET /tag/list` | `PUT /tag` | `DELETE /tag/{id}` |
 | 文件 | `POST /upload` | — | — | — |
 
+### 互动与通知接口
+
+| 功能 | 接口 |
+|------|------|
+| 收藏 / 取消收藏 | `POST /article/favorite/{id}`, `DELETE /article/favorite/{id}` |
+| 收藏状态 | `GET /article/favorite/status?articleId=` |
+| 我的收藏 | `GET /article/favorite/list?page&size` |
+| 关注 / 取消关注 | `POST /user/{id}/follow`, `DELETE /user/{id}/follow` |
+| 通知列表 | `GET /notification/list?page&size&type&unreadOnly` |
+| 未读数 | `GET /notification/unread-count` |
+| 标记已读 / 全部已读 | `PUT /notification/{id}/read`, `PUT /notification/read-all` |
+| 实时通知流 | `GET /notification/stream`（SSE） |
+
+收藏与关注的增删接口都返回权威状态（是否已收藏/已关注、最新计数），前端不做本地猜数。
+
 ### 后台管理接口
 
 `/admin` 下的接口要求 ADMIN 角色（`@RequireAdmin`），用于维护 RBAC 权限体系与查阅审计日志。这套接口后端已实现，前端后台页面目前只接了用户、文章、评论、分类、标签五个模块，角色与权限管理尚未接入界面。
@@ -282,6 +305,8 @@ Markdown 渲染正文、点赞按钮与嵌套评论系统。
 | 配置角色权限 | `PUT /admin/role/{roleId}/permissions` |
 | 权限列表 | `GET /admin/permission/list` |
 | 查询 / 分配用户角色 | `GET /admin/user/{id}/roles`, `PUT /admin/user/{id}/roles` |
+| 在线用户 | `GET /admin/online-users` |
+| 强制下线 | `DELETE /admin/users/{userId}/sessions` |
 | 登录日志 | `GET /admin/login-log` |
 | 操作日志 | `GET /admin/operation-log` |
 
@@ -315,6 +340,9 @@ Markdown 渲染正文、点赞按钮与嵌套评论系统。
 | `tag` | 标签 |
 | `article_tag` | 文章-标签关联 |
 | `comment` | 评论，`parent_id` 支持嵌套、`reply_to_id` 记录被回复人 |
+| `article_favorite` | 文章收藏关系，唯一键 `(user_id, article_id)` |
+| `user_follow` | 用户关注关系，唯一键 `(follower_id, followee_id)` |
+| `notification` | 站内通知，`dedup_key` 配合唯一键做并发安全去重 |
 | `article_chunk` | 文章向量片段，用于 RAG 检索 |
 | `chat_session` | AI 对话会话 |
 | `chat_message` | AI 对话消息 |
@@ -337,15 +365,30 @@ Markdown 渲染正文、点赞按钮与嵌套评论系统。
 - 浏览量、点赞定时任务每小时（整点）回写 MySQL，执行时用分布式锁保证多实例下只有一个节点在同步
 - 应用启动时，若 Redis 为空，从 MySQL 加载初始值
 
-### Redis 中的令牌状态
+### Redis 中的令牌与会话状态
 
-认证链路依赖 Redis 保存三类键，`blog:` 为统一前缀：
+认证链路依赖 Redis 保存三类令牌状态，外加一套活跃会话记录，`blog:` 为统一前缀。
+
+令牌状态：
 
 | Key | 内容 | 生命周期 |
 |-----|------|----------|
 | `blog:user:token:blacklist:{jti}` | 已失效的单张令牌 | 与该令牌剩余有效期一致 |
-| `blog:user:token:session:{sid}` | 会话撤销标记 | 覆盖该会话令牌的最长剩余有效期 |
+| `blog:user:token:session:{sid}` | 会话撤销标记 | 一律写满 RT 的完整有效期（7 天） |
 | `blog:user:token:rotation:{oldJti}` | 旧 RT 轮换后签发的新 RT | 仅宽限窗口内（默认 60 秒） |
+
+会话记录（登录设备管理）：
+
+| Key | 内容 | 生命周期 |
+|-----|------|----------|
+| `blog:user:sessions:{userId}` | ZSet，member 为 sid、score 为登录时间 | 7 天，登录/刷新时续期 |
+| `blog:user:session:meta:{sid}` | 设备 IP、UA、登录时间 | 7 天，登录/刷新时续期 |
+| `blog:user:session:active:{sid}` | 最后活跃时间 | 7 天，活跃时刷新 |
+| `blog:user:session:throttle:{sid}` | 活跃度更新节流标记 | 60 秒 |
+| `blog:user:online:zset` | ZSet，member 为用户、score 为最后活跃时间 | 不设过期，按 5 分钟窗口查询并清理 |
+| `blog:notify:unread:{userId}` | 未读通知数的读缓存，正本是数据库 COUNT | 60 秒，写通知/标记已读时直接删除 |
+
+每个会话独立成键而不是塞进一个 Hash，是因为 Hash 的字段没有独立 TTL（`HEXPIRE` 需要 Redis 7.4），一个用户的多个设备共用一个过期时间会让早已失效的设备一直占着名额。**TTL 对齐规则只有一条：谁签发新 RT，谁续 meta 与索引**——登录和刷新时续满 7 天，普通请求只更新活跃时间。这样会话的最长寿命恰好等于「最后一次刷新 + 7 天」，不会出现令牌仍有效、会话列表里却找不到的隐身会话。
 
 ### RAG 向量索引
 
@@ -376,7 +419,39 @@ Spring Security 以无状态（STATELESS）过滤链接管认证。`JwtAuthentic
 
 **登出撤销整个会话**。按 sid 写入撤销标记，该会话的 AT、RT 及历次轮换出的令牌一并立即失效；AT 恰好过期时凭请求体中的 RT 定位会话，所以登出接口本身对未认证请求放行，否则前端得先绕一圈刷新流程才能登出。
 
-> 兼容说明：不含 sid 的存量令牌无法按会话撤销，登出时退化为单令牌拉黑，待其自然过期（AT 2 小时、RT 7 天）后该分支即失效。
+> 兼容说明：不含 sid 的存量令牌无法按会话撤销，登出时退化为单令牌拉黑（AT 与 RT 一起拉黑），待其自然过期（AT 2 小时、RT 7 天）后该分支即失效。
+
+### 登录设备与在线状态
+
+登录时除了签发令牌，还在 Redis 登记一条会话记录：sid 进用户的会话索引，IP、UA、登录时间写入该 sid 的元信息。之后每个已认证请求都会做一次 60 秒节流的活跃度更新——只有节流键写入成功才真正更新活跃时间，否则只是多一次 `SET NX`。这样既能让用户看到「我在哪些设备登录过」，又不会把每个请求都变成一次 Redis 写。
+
+单账号最多保留 5 个会话（`auth.session.max-count`），超出时踢掉最早登录的那台。淘汰逻辑是「先写入、再按登录时间裁剪」，极端并发下可能多淘汰一台，但不会出现超限却没人被踢。
+
+踢下线、禁用用户、删除用户、修改密码四条链路走同一个撤销入口：**先写会话撤销标记，写成功后再清理元数据**。顺序反过来会留下「设备列表里没了、令牌却还能用」的窗口，这是下线功能最危险的失败模式。修改密码只在密码确实变化时撤销其他设备并对当前设备放行；禁用用户撤销全部会话，否则管理员重新启用后，未过期的旧令牌会一块复活。
+
+在线口径是「最近 5 分钟内带有效 AT 发过请求」，只挂着 RT、不发业务请求的用户不算在线。活跃度有 60 秒节流，因此最后活跃时间的误差不超过 1 分钟。被踢下线不是实时推送，而是在下一次请求时才发现，UI 按这个语义设计。
+
+会话记录是认证链路的旁路设施：除「写撤销标记」以外，所有读写失败都降级为告警，不会阻断登录或业务请求。Redis 数据丢失后，活跃会话会在下一次被节流的请求上自愈重建。
+
+### 互动数据的一致性
+
+收藏、关注、通知走同一条原则：**MySQL 是唯一正本，Redis 只存能从 MySQL 重建的派生数据**。
+
+收藏与关注的关系行和计数在同一个事务里：`INSERT IGNORE` 靠唯一键保证幂等，只有真的插入成功才执行 `UPDATE ... SET count = count + 1` 原子加计数——不做 read-modify-write，并发下不会丢增量。重复收藏、重复关注都直接返回当前状态，不会重复计数。关注会同时改两行 `user`，两次更新按 userId 升序执行，避免互相关注时交叉持锁造成死锁。删除用户时关系行随外键级联消失，但对方的计数不会自动回收，所以要先记下关系、删除后再手动减回去。
+
+通知与业务数据同事务落库，事件只在提交后负责推送。点赞和关注用 `dedup_key` 配合唯一键 `(receiver_id, dedup_key)` 去重：同一个人反复点赞、取关再关注都只通知一次，且由数据库保证并发安全；评论和回复的 `dedup_key` 为 NULL，MySQL 唯一索引允许多个 NULL，所以同一个人评论多次仍会各发一条通知。
+
+未读数以 `COUNT(*) WHERE is_read = 0` 为正本，Redis 只做 60 秒读缓存，写通知或标记已读时直接删除缓存键而不是加减计数——任何一次 Redis 故障都能靠重新 COUNT 自愈，不会出现角标数字长期对不上的漂移。
+
+> 已知债务：点赞仍是「Redis Set 即正本」，Redis 数据丢失后「谁点过赞」会永久丢失。新功能没有沿用这套模型；如果要统一，应补一张 `article_like` 关系表，把 Redis 降级为缓存。
+
+### 通知实时推送
+
+`GET /notification/stream` 是一条 SSE 长连接，服务端按 userId 维护连接集合，每条连接一个独立的 sink，多标签页互不干扰。服务端每 25 秒发一次心跳，同时检查该连接的会话是否已被撤销——SSE 只在握手时校验一次 JWT，之后不会自动失效，所以登出、被踢、被禁用之后必须由心跳主动断开，否则用户已经下线、连接还在收消息。
+
+客户端不使用 `EventSource`：它无法携带 `Authorization` 头，只能把 token 拼在 URL 上，而 URL 会进网关日志和 Referer。前端改用 `fetch` + `ReadableStream` 手动解析 SSE，token 走请求头，并实现了指数退避重连；连续失败时降级为每分钟轮询未读数。
+
+> **单实例假设**：通知在哪个实例产生，就只推给连在该实例上的用户。多实例部署需要加一层 Redis Pub/Sub 广播，当前版本未实现。推送本身不保证送达——通知行已经在数据库里，客户端重连后拉取列表即可补偿。
 
 ### Redis 故障时的取舍
 
@@ -391,6 +466,7 @@ Spring Security 以无状态（STATELESS）过滤链接管认证。`JwtAuthentic
 - **权限控制**：管理员专属接口以 `@RequireAdmin` + AOP 切面拦截，角色取自 RBAC 表实时查询的结果；文章、评论等资源的归属校验在业务层统一处理（作者本人或管理员），权限标识粒度的校验能力已实现但尚未在这些接口上启用
 - **令牌参数**：AccessToken 2 小时，RefreshToken 7 天，密钥为 Base64 编码的随机字节（解码后至少 256 位）
 - **文件上传**：限制图片格式（jpg/png/gif/webp），单文件不超过 5MB，使用随机文件名存储于 OSS
+- **公开路径**：匿名可访问的只有显式白名单与「纯数字 ID」的详情页（`/article/{id:[0-9]+}`、`/user/{id:[0-9]+}`）。早期的 `/article/*`、`/user/*` 通配会把 `/article/import`、`/user/profile` 这类单段路径一并放行，已收紧
 - **SQL 注入**：MyBatis-Plus 使用预编译参数
 - **XSS 防护**：前端 DOMPurify 过滤用户内容
 - **限流**：RAG 问答接口对 IP 进行分钟级限流
