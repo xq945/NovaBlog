@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.novablog.mapper.ArticleLikeMapper">
+
+    <!-- 唯一键 (user_id, article_id) 冲突时静默跳过，由返回值区分新增与重复 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO article_like (user_id, article_id)
+        VALUES (#{userId}, #{articleId})
+    </insert>
+
+    <!-- 启动回填：把 Redis 里已有、数据库还没有的点赞明细补进来 -->
+    <insert id="batchInsertIgnore">
+        INSERT IGNORE INTO article_like (user_id, article_id) VALUES
+        <foreach collection="userIds" item="userId" separator=",">
+            (#{userId}, #{articleId})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByUserAndArticle">
+        DELETE FROM article_like
+        WHERE user_id = #{userId} AND article_id = #{articleId}
+    </delete>
+
+    <select id="exists" resultType="int">
+        SELECT COUNT(*) FROM article_like
+        WHERE user_id = #{userId} AND article_id = #{articleId}
+    </select>
+
+    <select id="findUserIdsByArticle" resultType="long">
+        SELECT user_id FROM article_like WHERE article_id = #{articleId}
+    </select>
+
+    <select id="countByArticle" resultType="int">
+        SELECT COUNT(*) FROM article_like WHERE article_id = #{articleId}
+    </select>
+</mapper>

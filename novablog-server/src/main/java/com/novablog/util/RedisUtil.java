@@ -2,11 +2,14 @@ package com.novablog.util;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -178,6 +181,27 @@ public class RedisUtil {
     }
 
     /**
+     * 获取 Set 的全部成员
+     *
+     * @return 成员集合，键不存在返回空集合
+     */
+    public Set<String> sMembers(String key) {
+        return redisTemplate.opsForSet().members(key);
+    }
+
+    /**
+     * 批量添加成员到 Set
+     *
+     * @return 实际新增的成员数
+     */
+    public Long sAddAll(String key, Collection<String> members) {
+        if (members == null || members.isEmpty()) {
+            return 0L;
+        }
+        return redisTemplate.opsForSet().add(key, members.toArray(new String[0]));
+    }
+
+    /**
      * 获取 Set 元素数量
      *
      * @param key 键
@@ -185,6 +209,42 @@ public class RedisUtil {
      */
     public Long sCard(String key) {
         return redisTemplate.opsForSet().size(key);
+    }
+
+    /**
+     * 随机弹出一个 Set 成员（SPOP）
+     *
+     * <p>取出即从集合移除，适合「消费待处理队列」：并发消费不会重复处理，
+     * 处理失败时由调用方重新加入。
+     *
+     * @return 成员，集合为空返回 null
+     */
+    public String sPop(String key) {
+        return redisTemplate.opsForSet().pop(key);
+    }
+
+    /**
+     * 批量统计多个 Set 的元素数量（pipeline，一次往返）
+     *
+     * @param keys Set 的键，按传入顺序返回
+     * @return 与 keys 顺序一致的数量列表，键不存在或命令失败的位置为 null
+     */
+    public List<Long> multiSCard(List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Object> raw = redisTemplate.executePipelined(
+            (RedisCallback<Object>) connection -> {
+                for (String key : keys) {
+                    connection.setCommands().sCard(key.getBytes(StandardCharsets.UTF_8));
+                }
+                return null;
+            });
+        List<Long> result = new ArrayList<>(keys.size());
+        for (Object value : raw) {
+            result.add(value instanceof Long ? (Long) value : null);
+        }
+        return result;
     }
 
     /**
@@ -208,6 +268,18 @@ public class RedisUtil {
      */
     public void zAdd(String key, String member, double score) {
         redisTemplate.opsForZSet().add(key, member, score);
+    }
+
+    /**
+     * 按增量累加 ZSet 分数（成员不存在时创建）
+     *
+     * <p>热榜用增量而非绝对值覆盖：并发请求各自持有不同的浏览量快照，
+     * 用 ZADD 覆盖会让后写者把较大分数改小。
+     *
+     * @return 累加后的分数
+     */
+    public Double zIncrBy(String key, String member, double delta) {
+        return redisTemplate.opsForZSet().incrementScore(key, member, delta);
     }
 
     /**
@@ -309,7 +381,9 @@ public class RedisUtil {
                 keys.add(cursor.next());
             }
         } catch (Exception e) {
-            // SCAN 异常时返回空集合
+            // 不能返回空集合：调用方会把它当成「没有数据」，
+            // 一次 Redis 故障就这样被伪装成一次正常的空扫描
+            throw new IllegalStateException("扫描 Redis Key 失败: " + pattern, e);
         }
         return keys;
     }

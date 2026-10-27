@@ -111,6 +111,8 @@ mysql -u root -p < sql/init.sql
 mysql -u root -p novablog < sql/v2-rbac-migration.sql
 # 建收藏、关注、通知表，并给 user / article 补计数字段
 mysql -u root -p novablog < sql/v3-social-migration.sql
+# 建点赞关系表：点赞明细从只存 Redis 改为落库，Redis 仅承担计数缓存
+mysql -u root -p novablog < sql/v4-like-migration.sql
 ```
 
 如果需要体验带有模拟数据的完整效果，可继续导入种子数据：

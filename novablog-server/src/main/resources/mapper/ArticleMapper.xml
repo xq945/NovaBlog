@@ -185,6 +185,25 @@
         UPDATE article SET like_count = #{likeCount} WHERE id = #{id}
     </update>
 
+    <!-- 点赞数原子增减：不做 read-modify-write，并发下不会丢增量 -->
+    <update id="incrementLikeCount">
+        UPDATE article SET like_count = like_count + 1 WHERE id = #{id}
+    </update>
+
+    <update id="decrementLikeCount">
+        UPDATE article SET like_count = GREATEST(like_count - 1, 0) WHERE id = #{id}
+    </update>
+
+    <!-- 统计同步只取计数字段，不联表 -->
+    <select id="findStatsByIds" resultType="com.novablog.entity.Article">
+        SELECT id, view_count, like_count
+        FROM article
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <!-- 收藏数原子增减：不做 read-modify-write，并发下不会丢增量 -->
     <update id="incrementFavoriteCount">
         UPDATE article SET favorite_count = favorite_count + 1 WHERE id = #{id}
@@ -258,6 +277,25 @@
             #{id}
         </foreach>
         AND a.status = 1
+    </select>
+
+    <!-- 热榜兜底：ZSet 不可用时按数据库计数排序，权重与 Redis 侧保持一致（浏览 1、点赞 3） -->
+    <select id="findHotFromDb" resultMap="articleVOResultMap">
+        SELECT
+            a.id, a.title, a.summary, a.cover,
+            a.view_count, a.like_count, a.favorite_count, a.status,
+            a.user_id AS author_id,
+            u.nickname AS author_nickname,
+            u.avatar AS author_avatar,
+            a.category_id,
+            c.name AS category_name,
+            a.create_time
+        FROM article a
+        LEFT JOIN user u ON a.user_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.status = 1
+        ORDER BY a.view_count + a.like_count * 3 DESC, a.id DESC
+        LIMIT #{limit}
     </select>
 
     <!-- 管理员查询所有文章（含草稿） -->

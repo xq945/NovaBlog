@@ -13,6 +13,7 @@ import com.novablog.entity.Article;
 import com.novablog.entity.Category;
 import com.novablog.entity.Tag;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.novablog.mapper.ArticleLikeMapper;
 import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.ArticleTagMapper;
 import com.novablog.mapper.CategoryMapper;
@@ -36,8 +37,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +58,7 @@ import java.util.stream.Collectors;
 public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> implements ArticleService {
 
     private final ArticleMapper articleMapper;
+    private final ArticleLikeMapper articleLikeMapper;
     private final ArticleTagMapper articleTagMapper;
     private final TagMapper tagMapper;
     private final CategoryMapper categoryMapper;
@@ -69,16 +74,6 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
      * 摘要自动截取长度
      */
     private static final int SUMMARY_MAX_LENGTH = 150;
-
-    /**
-     * 热度分计算权重：浏览量权重
-     */
-    private static final double VIEW_WEIGHT = 1.0;
-
-    /**
-     * 热度分计算权重：点赞数权重
-     */
-    private static final double LIKE_WEIGHT = 3.0;
 
     @Override
     @Transactional
@@ -216,6 +211,8 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             Long viewCount = articleStatsComponent.incrementViewCount(id);
             if (viewCount != null) {
                 detail.setViewCount(viewCount.intValue());
+                // 热度分随浏览量增量累加，避免并发请求用旧快照覆盖更大分数
+                articleStatsComponent.addViewToHotScore(id);
             }
 
             // 4. 已发布文章点赞数处理（优先 Redis）
@@ -223,18 +220,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             if (likeCount != null) {
                 detail.setLikeCount(likeCount.intValue());
             }
-
-            // 5. 更新热门排行 ZSet
-            if (viewCount == null) {
-                viewCount = getViewCountFromRedisOrDb(id);
-            }
-            if (likeCount == null) {
-                likeCount = detail.getLikeCount() != null ? detail.getLikeCount().longValue() : 0L;
-            }
-            articleStatsComponent.updateHotScore(id, viewCount, likeCount);
         }
 
-        // 6. 查询标签
+        // 5. 查询标签
         List<Tag> tags = tagMapper.findByArticleId(id);
         List<TagVO> tagVOList = tags.stream().map(t -> {
             TagVO vo = new TagVO();
@@ -324,21 +312,22 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         // 8. 标签关联处理（增量更新，避免全量删除再插入）
         tagRelationComponent.updateArticleTags(articleId, articleDTO.getTagIds());
 
-        // 9. 状态变更时的 Redis 处理
+        // 9. 状态变更时的 Redis 处理放在事务提交后，
+        //    事务回滚时榜单不应留下"已发布/已下架"的痕迹
         if (newStatus != null) {
-            try {
-                if (newStatus == 0) {
+            final Integer targetStatus = newStatus;
+            afterCommit(() -> {
+                if (targetStatus == 0) {
                     // 变为草稿：从 ZSet 移除
                     articleStatsComponent.removeFromHot(articleId);
-                } else if (newStatus == 1 && article.getStatus() != null && article.getStatus() == 0) {
-                    // 从草稿变为已发布：重新计算热度分并加入 ZSet
+                } else if (targetStatus == 1
+                        && article.getStatus() != null && article.getStatus() == 0) {
+                    // 从草稿变为已发布：按当前计数重算并加入 ZSet
                     Long viewCount = getViewCountFromRedisOrDb(articleId);
                     Long likeCount = getLikeCountFromRedisOrDb(articleId);
                     articleStatsComponent.updateHotScore(articleId, viewCount, likeCount);
                 }
-            } catch (Exception e) {
-                log.warn("状态变更时更新 ZSet 失败, articleId={}, newStatus={}", articleId, newStatus, e);
-            }
+            });
         }
 
         // 10. 触发向量索引重建（异步）
@@ -363,10 +352,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         // 4. 删除文章
         articleMapper.deleteById(id);
 
-        // 5. 清理 Redis
-        articleStatsComponent.deleteViewCount(id);
-        articleStatsComponent.deleteLikeSet(id);
-        articleStatsComponent.removeFromHot(id);
+        // 5. 清理 Redis，放在事务提交后，避免回滚时缓存已被删除
+        afterCommit(() -> {
+            articleStatsComponent.deleteViewCount(id);
+            articleStatsComponent.deleteLikeSet(id);
+            articleStatsComponent.removeFromHot(id);
+        });
 
         // 6. 清理向量索引
         try {
@@ -439,28 +430,25 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             throw new BusinessException(401, "请先登录");
         }
 
-        // 4. Redis 点赞（原子操作，防重复点赞）
-        if (!articleStatsComponent.like(articleId, userId)) {
+        // 4. 点赞关系落库。数据库是正本，唯一键保证幂等；
+        //    Redis 只是缓存，写失败不影响已经落库的点赞
+        int inserted = articleLikeMapper.insertIgnore(userId, articleId);
+        if (inserted == 0) {
+            // 已点赞。顺手补一次缓存：Redis 丢数据后靠这次操作自愈
+            articleStatsComponent.cacheLike(articleId, userId);
             throw new BusinessException(409, "已点赞");
         }
+        articleStatsComponent.cacheLike(articleId, userId);
 
-        // 5. 更新 MySQL like_count（失败不影响 Redis 结果，后续定时任务补偿）
+        // 5. 更新 MySQL like_count（原子自增，失败由定时任务按关系表校准）
         try {
-            articleMapper.update(new Article() {{
-                setId(articleId);
-                setLikeCount((article.getLikeCount() != null ? article.getLikeCount() : 0L) + 1);
-            }});
+            articleMapper.incrementLikeCount(articleId);
         } catch (Exception e) {
-            log.warn("点赞后更新 MySQL like_count 失败, articleId={}, 将由定时任务补偿", articleId, e);
+            log.warn("点赞后更新 MySQL like_count 失败, articleId={}, 将由定时任务校准", articleId, e);
         }
 
-        // 6. 更新热门排行 ZSet
-        Long viewCount = getViewCountFromRedisOrDb(articleId);
-        Long likeCount = articleStatsComponent.getLikeCount(articleId);
-        if (likeCount == null) {
-            likeCount = getLikeCountFromRedisOrDb(articleId);
-        }
-        articleStatsComponent.updateHotScore(articleId, viewCount, likeCount);
+        // 6. 热度分 +3
+        articleStatsComponent.addLikeToHotScore(articleId);
 
         // 7. 通知文章作者。自己赞自己不通知，通知失败只记日志，不影响点赞结果
         notificationService.notifyLike(article.getUserId(), userId, articleId, article.getTitle());
@@ -479,36 +467,27 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
             throw new BusinessException(401, "请先登录");
         }
 
-        // 3. Redis 取消点赞
-        if (!articleStatsComponent.unlike(articleId, userId)) {
+        // 3. 删除点赞关系（数据库是正本）；删不到说明本来就没点赞
+        int deleted = articleLikeMapper.deleteByUserAndArticle(userId, articleId);
+        if (deleted == 0) {
+            // 缓存与数据库不一致时，顺手清掉缓存里的残留
+            articleStatsComponent.cacheUnlike(articleId, userId);
             throw new BusinessException(404, "未点赞");
         }
+        articleStatsComponent.cacheUnlike(articleId, userId);
 
-        // 4. 更新 MySQL like_count（失败不影响 Redis 结果，后续定时任务补偿）
-        Article article = articleMapper.findById(articleId);
-        if (article != null && article.getLikeCount() != null && article.getLikeCount() > 0) {
-            try {
-                articleMapper.update(new Article() {{
-                    setId(articleId);
-                    setLikeCount(article.getLikeCount() - 1);
-                }});
-            } catch (Exception e) {
-                log.warn("取消点赞后更新 MySQL like_count 失败, articleId={}, 将由定时任务补偿", articleId, e);
-            }
+        // 4. 更新 MySQL like_count（原子自减，失败由定时任务按关系表校准）
+        try {
+            articleMapper.decrementLikeCount(articleId);
+        } catch (Exception e) {
+            log.warn("取消点赞后更新 MySQL like_count 失败, articleId={}, 将由定时任务校准", articleId, e);
         }
 
-        // 5. 更新热门排行 ZSet
-        Long viewCount = getViewCountFromRedisOrDb(articleId);
-        Long likeCount = articleStatsComponent.getLikeCount(articleId);
-        if (likeCount == null || likeCount == 0) {
-            // 点赞数为 0 且浏览量也为 0，从 ZSet 移除
-            if (viewCount == 0) {
-                articleStatsComponent.removeFromHot(articleId);
-            } else {
-                articleStatsComponent.updateHotScore(articleId, viewCount, 0L);
-            }
-        } else {
-            articleStatsComponent.updateHotScore(articleId, viewCount, likeCount);
+        // 5. 热度分 -3；分数归零说明既无浏览也无点赞，从榜单移除
+        articleStatsComponent.removeLikeFromHotScore(articleId);
+        Double hotScore = articleStatsComponent.getHotScore(articleId);
+        if (hotScore != null && hotScore <= 0) {
+            articleStatsComponent.removeFromHot(articleId);
         }
     }
 
@@ -536,8 +515,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
 
         LikeStatusVO vo = new LikeStatusVO();
 
-        // 4. 查询是否点赞
-        vo.setLiked(articleStatsComponent.isLiked(articleId, userId));
+        // 4. 查询是否点赞：缓存不可用时回落关系表
+        Boolean liked = articleStatsComponent.isLiked(articleId, userId);
+        if (liked == null) {
+            liked = articleLikeMapper.exists(userId, articleId) > 0;
+        }
+        vo.setLiked(liked);
 
         // 5. 查询点赞总数
         Long likeCount = articleStatsComponent.getLikeCount(articleId);
@@ -596,100 +579,244 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     @Override
     public List<HotArticleVO> findHotArticles(Integer size) {
         // 1. 参数修正
-        if (size == null || size < 1) {
-            size = 10;
-        }
-        if (size > 50) {
-            size = 50;
-        }
+        int safeSize = size == null || size < 1 ? 10 : Math.min(size, 50);
 
-        // 2. 查询 ZSet
-        Set<ZSetOperations.TypedTuple<String>> tuples;
+        // 2. 优先走 ZSet；Redis 不可用时按数据库计数兜底，而不是返回空榜
+        List<HotArticleVO> hotList;
+        List<Long> ghostIds = new ArrayList<>();
         try {
-            tuples = redisUtil.zRevRangeWithScores(RedisKeyConstant.ARTICLE_HOT_ZSET, 0, size - 1);
+            hotList = loadHotFromZSet(safeSize, ghostIds);
         } catch (Exception e) {
-            log.warn("查询热门排行 ZSet 失败", e);
-            return new ArrayList<>();
+            log.warn("查询热门排行失败，降级为数据库排序", e);
+            ghostIds.clear();
+            hotList = loadHotFromDb(safeSize);
         }
 
-        if (tuples == null || tuples.isEmpty()) {
-            return new ArrayList<>();
+        // 3. 幽灵成员在读取结束后统一清理：边取边删会让 ZSet 前移，导致分页漏掉成员
+        for (Long ghostId : ghostIds) {
+            articleStatsComponent.removeFromHot(ghostId);
         }
 
-        // 3. 提取 articleId 和 hotScore
-        List<Long> articleIds = new ArrayList<>();
-        java.util.Map<Long, Double> scoreMap = new java.util.HashMap<>();
-        for (ZSetOperations.TypedTuple<String> tuple : tuples) {
-            String articleIdStr = tuple.getValue();
-            Double score = tuple.getScore();
-            if (articleIdStr != null) {
+        // 4. 统一按热度分降序，两条数据来源的顺序都收敛到同一口径
+        sortByHotScore(hotList);
+        fillTags(hotList);
+        return hotList;
+    }
+
+    /**
+     * 从 ZSet 按排名分批取，跳过已下架/已删除文章占用的名额，直到凑满或取尽
+     */
+    private List<HotArticleVO> loadHotFromZSet(int size, List<Long> ghostIds) {
+        List<HotArticleVO> result = new ArrayList<>();
+        long offset = 0;
+        while (result.size() < size) {
+            Set<ZSetOperations.TypedTuple<String>> tuples = redisUtil.zRevRangeWithScores(
+                RedisKeyConstant.ARTICLE_HOT_ZSET, offset, offset + size - 1);
+            if (tuples == null || tuples.isEmpty()) {
+                break;
+            }
+            // 本批不足 size 条说明 ZSet 已经取尽，本轮之后不必再查
+            boolean exhausted = tuples.size() < size;
+
+            List<Long> batchIds = new ArrayList<>();
+            Map<Long, Double> scoreMap = new HashMap<>();
+            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+                String articleIdStr = tuple.getValue();
+                if (articleIdStr == null) {
+                    continue;
+                }
                 try {
                     Long articleId = Long.parseLong(articleIdStr);
-                    articleIds.add(articleId);
-                    if (score != null) {
-                        scoreMap.put(articleId, score);
-                    }
+                    batchIds.add(articleId);
+                    scoreMap.put(articleId, tuple.getScore());
                 } catch (NumberFormatException ignored) {
                 }
             }
-        }
-
-        if (articleIds.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        // 4. 批量查询文章详情
-        List<ArticleVO> articleList = articleMapper.findByIds(articleIds);
-
-        // 5. 组装 HotArticleVO（过滤已删除/变草稿的文章并清理 ZSet）
-        List<HotArticleVO> hotList = new ArrayList<>();
-        for (ArticleVO articleVO : articleList) {
-            if (articleVO == null || articleVO.getStatus() == null || articleVO.getStatus() != 1) {
-                // 文章已删除或变草稿，从 ZSet 移除
-                articleStatsComponent.removeFromHot(articleVO != null ? articleVO.getId() : null);
+            if (batchIds.isEmpty()) {
+                if (exhausted) {
+                    break;
+                }
+                offset += size;
                 continue;
             }
 
-            HotArticleVO hotVO = new HotArticleVO();
-            hotVO.setId(articleVO.getId());
-            hotVO.setTitle(articleVO.getTitle());
-            hotVO.setSummary(articleVO.getSummary());
-            hotVO.setCover(articleVO.getCover());
-            hotVO.setAuthor(articleVO.getAuthor());
-            hotVO.setCategory(articleVO.getCategory());
-            hotVO.setCreateTime(articleVO.getCreateTime());
-            hotVO.setStatus(articleVO.getStatus());
-
-            // 从 Redis 读取实时计数
-            Long articleId = articleVO.getId();
-            Long viewCount = articleStatsComponent.getViewCount(articleId);
-            hotVO.setViewCount(viewCount != null ? viewCount.intValue() : articleVO.getViewCount());
-
-            Long likeCount = articleStatsComponent.getLikeCount(articleId);
-            hotVO.setLikeCount(likeCount != null ? likeCount.intValue() : articleVO.getLikeCount());
-
-            // 设置热度分
-            Double hotScore = scoreMap.get(articleId);
-            if (hotScore != null) {
-                hotVO.setHotScore(hotScore);
-            } else {
-                hotVO.setHotScore(articleStatsComponent.calculateHotScore(
-                        hotVO.getViewCount() != null ? hotVO.getViewCount().longValue() : 0L,
-                        hotVO.getLikeCount() != null ? hotVO.getLikeCount().longValue() : 0L
-                ));
+            List<ArticleVO> articleList = articleMapper.findByIds(batchIds);
+            if (articleList == null) {
+                articleList = new ArrayList<>();
             }
 
-            hotList.add(hotVO);
-        }
+            // SQL 带 status = 1，查不回来的 ID 就是幽灵成员
+            Set<Long> fetchedIds = articleList.stream()
+                .map(ArticleVO::getId)
+                .collect(Collectors.toSet());
+            for (Long articleId : batchIds) {
+                if (!fetchedIds.contains(articleId)) {
+                    ghostIds.add(articleId);
+                }
+            }
 
-        // 批量查询标签（避免 N+1 问题）
-        List<Long> allArticleIds = hotList.stream().map(HotArticleVO::getId).collect(Collectors.toList());
-        Map<Long, List<String>> tagMap = findTagNamesByArticleIds(allArticleIds);
-        for (HotArticleVO hotVO : hotList) {
-            hotVO.setTags(tagMap.getOrDefault(hotVO.getId(), new ArrayList<>()));
-        }
+            // 批量读实时计数：浏览量一次 multiGet，点赞数一次 pipeline
+            Map<Long, Long> viewCounts = batchViewCounts(batchIds);
+            Map<Long, Long> likeCounts = batchLikeCounts(batchIds);
+            for (ArticleVO articleVO : articleList) {
+                if (result.size() >= size) {
+                    break;
+                }
+                result.add(buildHotArticle(articleVO, scoreMap.get(articleVO.getId()),
+                    viewCounts, likeCounts));
+            }
 
+            offset += size;
+            if (exhausted) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Redis 不可用时的兜底：按数据库里的浏览量与点赞数排序
+     */
+    private List<HotArticleVO> loadHotFromDb(int size) {
+        List<ArticleVO> articleList;
+        try {
+            articleList = articleMapper.findHotFromDb(size);
+        } catch (Exception e) {
+            log.warn("热门文章数据库兜底查询失败", e);
+            return new ArrayList<>();
+        }
+        if (articleList == null || articleList.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<HotArticleVO> hotList = new ArrayList<>(articleList.size());
+        for (ArticleVO articleVO : articleList) {
+            hotList.add(buildHotArticle(articleVO, null, null, null));
+        }
         return hotList;
+    }
+
+    /**
+     * 批量读取浏览量，返回的 Map 只包含 Redis 中存在的文章
+     */
+    private Map<Long, Long> batchViewCounts(List<Long> articleIds) {
+        List<String> keys = articleIds.stream()
+            .map(RedisKeyConstant::articleView)
+            .collect(Collectors.toList());
+        List<String> values = redisUtil.multiGet(keys);
+        Map<Long, Long> counts = new HashMap<>();
+        if (values == null) {
+            return counts;
+        }
+        for (int i = 0; i < articleIds.size() && i < values.size(); i++) {
+            String value = values.get(i);
+            if (value == null) {
+                continue;
+            }
+            try {
+                counts.put(articleIds.get(i), Long.parseLong(value));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * 批量读取点赞数，返回的 Map 只包含 Redis 中存在的文章
+     */
+    private Map<Long, Long> batchLikeCounts(List<Long> articleIds) {
+        List<String> keys = articleIds.stream()
+            .map(RedisKeyConstant::articleLike)
+            .collect(Collectors.toList());
+        List<Long> cards = redisUtil.multiSCard(keys);
+        Map<Long, Long> counts = new HashMap<>();
+        for (int i = 0; i < articleIds.size() && i < cards.size(); i++) {
+            Long card = cards.get(i);
+            // SCARD 对不存在的键也返回 0；0 值不放入 Map，
+            // 交由调用方回落到数据库计数，避免缓存缺失时把历史点赞数显示成 0
+            if (card != null && card > 0) {
+                counts.put(articleIds.get(i), card);
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * 组装榜单条目：Redis 计数缺失时回落到数据库值
+     *
+     * @param zsetScore ZSet 中的分数；为空时按计数重新计算（数据库兜底路径）
+     */
+    private HotArticleVO buildHotArticle(ArticleVO articleVO, Double zsetScore,
+                                          Map<Long, Long> viewCounts,
+                                          Map<Long, Long> likeCounts) {
+        HotArticleVO hotVO = new HotArticleVO();
+        hotVO.setId(articleVO.getId());
+        hotVO.setTitle(articleVO.getTitle());
+        hotVO.setSummary(articleVO.getSummary());
+        hotVO.setCover(articleVO.getCover());
+        hotVO.setAuthor(articleVO.getAuthor());
+        hotVO.setCategory(articleVO.getCategory());
+        hotVO.setCreateTime(articleVO.getCreateTime());
+        hotVO.setStatus(articleVO.getStatus());
+
+        Long articleId = articleVO.getId();
+        Long viewCount = viewCounts == null ? null : viewCounts.get(articleId);
+        Long likeCount = likeCounts == null ? null : likeCounts.get(articleId);
+        hotVO.setViewCount(viewCount != null ? viewCount.intValue() : articleVO.getViewCount());
+        hotVO.setLikeCount(likeCount != null ? likeCount.intValue() : articleVO.getLikeCount());
+
+        if (zsetScore != null) {
+            hotVO.setHotScore(zsetScore);
+        } else {
+            long view = viewCount != null ? viewCount
+                : (articleVO.getViewCount() == null ? 0L : articleVO.getViewCount().longValue());
+            long like = likeCount != null ? likeCount
+                : (articleVO.getLikeCount() == null ? 0L : articleVO.getLikeCount().longValue());
+            hotVO.setHotScore(articleStatsComponent.calculateHotScore(view, like));
+        }
+        return hotVO;
+    }
+
+    private void sortByHotScore(List<HotArticleVO> hotList) {
+        hotList.sort(Comparator.comparingDouble(
+            (HotArticleVO vo) -> vo.getHotScore() == null ? 0d : vo.getHotScore()).reversed());
+    }
+
+    private void fillTags(List<? extends ArticleVO> list) {
+        if (list.isEmpty()) {
+            return;
+        }
+        List<Long> articleIds = list.stream().map(ArticleVO::getId).collect(Collectors.toList());
+        Map<Long, List<String>> tagMap = findTagNamesByArticleIds(articleIds);
+        for (ArticleVO articleVO : list) {
+            articleVO.setTags(tagMap.getOrDefault(articleVO.getId(), new ArrayList<>()));
+        }
+    }
+
+    /**
+     * 在事务提交后执行缓存操作；无事务时立即执行
+     *
+     * <p>Redis 不参与数据库事务，先写缓存再回滚会留下不一致，
+     * 因此热榜变更与统计清理统一推迟到提交之后。
+     */
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        action.run();
+                    } catch (Exception e) {
+                        log.warn("事务提交后更新缓存失败", e);
+                    }
+                }
+            });
+            return;
+        }
+        try {
+            action.run();
+        } catch (Exception e) {
+            log.warn("更新缓存失败", e);
+        }
     }
 
     /**

@@ -39,6 +39,16 @@ public interface ArticleMapper extends BaseMapper<Article> {
     int updateLikeCount(@Param("id") Long id, @Param("likeCount") Long likeCount);
 
     /**
+     * 点赞数原子加一，避免 read-modify-write 在并发下丢更新
+     */
+    int incrementLikeCount(@Param("id") Long id);
+
+    /**
+     * 点赞数原子减一，用 GREATEST 兜底，避免并发下减成负数
+     */
+    int decrementLikeCount(@Param("id") Long id);
+
+    /**
      * 收藏数加一。原子 SQL，不做 read-modify-write
      */
     int incrementFavoriteCount(@Param("id") Long id);
@@ -61,6 +71,16 @@ public interface ArticleMapper extends BaseMapper<Article> {
     List<Article> findAllPublished();
 
     List<ArticleVO> findByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 只查统计同步需要的 id、浏览量、点赞数，避免为了比较计数去联表查整行
+     */
+    List<Article> findStatsByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 按数据库里的浏览量、点赞数计算热度并排序，用于 Redis 不可用时兜底
+     */
+    List<ArticleVO> findHotFromDb(@Param("limit") int limit);
 
     List<ArticleVO> findAdminList(@Param("keyword") String keyword,
                                    @Param("offset") int offset,

@@ -171,7 +171,20 @@ CREATE TABLE `article_favorite` (
     KEY `idx_favorite_user_time` (`user_id`, `create_time`) COMMENT '我的收藏列表'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章收藏表';
 
--- 11. 用户关注表
+-- 11. 文章点赞表
+DROP TABLE IF EXISTS `article_like`;
+CREATE TABLE `article_like` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '点赞用户ID',
+    `article_id` BIGINT NOT NULL COMMENT '文章ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_like_user_article` (`user_id`, `article_id`) COMMENT '幂等：同一用户重复点赞只有一条',
+    KEY `idx_like_article_id` (`article_id`) COMMENT '按文章统计与重建缓存',
+    KEY `idx_like_user_time` (`user_id`, `create_time`) COMMENT '我的点赞列表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章点赞关系表';
+
+-- 12. 用户关注表
 DROP TABLE IF EXISTS `user_follow`;
 CREATE TABLE `user_follow` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -184,7 +197,7 @@ CREATE TABLE `user_follow` (
     KEY `idx_follow_followee_time` (`followee_id`, `create_time`) COMMENT '粉丝列表'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户关注表';
 
--- 12. 站内通知表
+-- 13. 站内通知表
 DROP TABLE IF EXISTS `notification`;
 CREATE TABLE `notification` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -229,6 +242,11 @@ ALTER TABLE `comment`
 ALTER TABLE `article_favorite`
     ADD CONSTRAINT `fk_favorite_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
     ADD CONSTRAINT `fk_favorite_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
+
+-- 文章点赞表外键
+ALTER TABLE `article_like`
+    ADD CONSTRAINT `fk_like_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_like_article` FOREIGN KEY (`article_id`) REFERENCES `article` (`id`) ON DELETE CASCADE;
 
 -- 用户关注表外键
 ALTER TABLE `user_follow`

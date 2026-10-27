@@ -33,6 +33,13 @@ public final class RedisKeyConstant {
     public static final String ARTICLE_HOT_ZSET = PREFIX + "article:hot:zset";
 
     /**
+     * 待同步统计的文章 ID 集合 Key
+     * 格式：blog:article:stats:dirty
+     * 浏览量、点赞数发生变化时加入，定时任务用 SPOP 原子取出，避免全量扫描
+     */
+    public static final String ARTICLE_STATS_DIRTY = PREFIX + "article:stats:dirty";
+
+    /**
      * Token 黑名单 Key 前缀
      * 格式：blog:user:token:blacklist:{jti}
      * 存放已被消费或已失效的单个令牌（登出的 AT、轮换后的旧 RT）
