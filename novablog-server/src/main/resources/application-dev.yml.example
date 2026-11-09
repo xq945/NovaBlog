@@ -18,8 +18,10 @@ spring:
 # JWT 密钥：长度必须 >= 32 位，建议 >= 64 位，包含大小写字母、数字和特殊字符
 jwt:
   secret: ${NOVABLOG_JWT_SECRET:}
-  expiration: ${NOVABLOG_JWT_EXPIRATION:7200000}
+  access-expiration: ${NOVABLOG_JWT_EXPIRATION:7200000}
   refresh-expiration: ${NOVABLOG_JWT_REFRESH_EXPIRATION:604800000}
+  # 轮换宽限窗口，验证时调小（如 3000）可快速复现并发刷新与泄露判定两条分支
+  rotation-grace: ${NOVABLOG_JWT_ROTATION_GRACE:60000}
 
 # MyBatis 开发环境输出 SQL 日志
 mybatis:

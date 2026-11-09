@@ -1,7 +1,7 @@
 package com.novablog.security;
 
 import com.novablog.common.UserContext;
-import com.novablog.util.RedisUtil;
+import com.novablog.service.TokenBlacklistService;
 import java.util.List;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,36 +21,50 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsServiceImpl userDetailsService;
-    private final RedisUtil redisUtil;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain)
             throws ServletException, IOException {
+        try {
+            authenticate(request);
+            chain.doFilter(request, response);
+        } finally {
+            // ThreadLocal 必须显式清理：Tomcat 复用线程时，残留的用户信息会被
+            // 下一个请求读到——尤其是放行的公开接口，会拿到上一位访问者的 userId
+            UserContext.clear();
+        }
+    }
 
+    /**
+     * 校验令牌并写入认证上下文。
+     * 任一步不通过都只表现为「未认证」，由后续的授权规则决定该请求是否放行。
+     */
+    private void authenticate(HttpServletRequest request) {
         String token = extractToken(request);
         if (token == null) {
-            chain.doFilter(request, response);
             return;
         }
 
-        // 校验 Token 黑名单
-        String jti = jwtTokenProvider.getJti(token);
-        if (redisUtil.hasKey("token:blacklist:" + jti)) {
-            chain.doFilter(request, response);
-            return;
-        }
-
-        // 校验 Token 有效性
+        // 先验签：被篡改的令牌在解析 claim 时就会抛异常，不能拿它去取 jti
         if (!jwtTokenProvider.validateToken(token)) {
-            chain.doFilter(request, response);
             return;
         }
 
-        // 校验 Token 类型（必须是 ACCESS）
+        // 必须是 AccessToken，RefreshToken 不能用来访问业务接口
         if (!jwtTokenProvider.isAccessToken(token)) {
-            chain.doFilter(request, response);
+            return;
+        }
+
+        // 会话级失效：登出或判定令牌泄露后，该会话的全部令牌立即作废
+        if (tokenBlacklistService.isSessionRevoked(jwtTokenProvider.getSid(token))) {
+            return;
+        }
+
+        // 单令牌失效：登出的 AT、被轮换掉的旧 RT，以及不含 sid 的存量令牌
+        if (tokenBlacklistService.isBlacklisted(jwtTokenProvider.getJti(token))) {
             return;
         }
 
@@ -61,7 +75,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // 校验用户状态
         if (!userDetails.isEnabled()) {
-            chain.doFilter(request, response);
             return;
         }
 
@@ -78,8 +91,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         UserContext.set(userDetails.getUserId(),
                         userDetails.getUsername(),
                         roles);
-
-        chain.doFilter(request, response);
     }
 
     private String extractToken(HttpServletRequest request) {

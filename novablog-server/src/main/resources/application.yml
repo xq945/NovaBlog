@@ -81,6 +81,9 @@ jwt:
   secret: ${NOVABLOG_JWT_SECRET}
   access-expiration: 7200000       # Access Token 过期时间：2 小时
   refresh-expiration: 604800000    # Refresh Token 过期时间：7 天
+  # RefreshToken 轮换宽限窗口。多个标签页共享同一个 AccessToken，会几乎同时刷新，
+  # 窗口内的重复刷新复用已签发的新 RT；超窗口仍未携新令牌复现，即判定为泄露并撤销整个会话
+  rotation-grace: 60000
 
 # 7. SpringDoc / Knife4j API 文档配置
 knife4j:

@@ -37,7 +37,7 @@ public class AuthController {
         return Result.success(authService.register(registerDTO));
     }
 
-    @Operation(summary = "刷新 Token", description = "使用 RefreshToken 换发新的 AccessToken，支持滑动过期")
+    @Operation(summary = "刷新 Token", description = "使用 RefreshToken 换发新的 AccessToken；RefreshToken 每次刷新同步轮换，旧令牌立即作废")
     @PostMapping("/refresh")
     public Result<Map<String, Object>> refresh(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
@@ -48,14 +48,24 @@ public class AuthController {
         return Result.success(authService.refresh(refreshToken));
     }
 
-    @Operation(summary = "登出", description = "将当前 AccessToken 加入黑名单")
+    @Operation(summary = "登出", description = "撤销当前会话，该会话的 AccessToken 与 RefreshToken 一并失效")
     @PostMapping("/logout")
-    public Result<Void> logout(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            authService.logout(authHeader.substring(7));
-        }
+    public Result<Void> logout(HttpServletRequest request,
+                               @RequestBody(required = false) Map<String, String> body) {
+        // 两个令牌都传，AT 已过期时后端还能凭 RT 找到会话并撤销
+        String refreshToken = body != null ? body.get("refreshToken") : null;
+        authService.logout(extractBearer(request.getHeader("Authorization")), refreshToken);
         return Result.success();
+    }
+
+    /**
+     * 从 Authorization 头里取出 Bearer 令牌，缺失或格式不符时返回 null
+     */
+    private String extractBearer(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        return null;
     }
 
     @Operation(summary = "获取当前用户信息", description = "需要登录")

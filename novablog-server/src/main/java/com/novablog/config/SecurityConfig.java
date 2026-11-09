@@ -47,6 +47,9 @@ public class SecurityConfig {
                     "/user/login",
                     "/user/register",
                     "/auth/refresh",
+                    // 登出放行：AT 恰好过期时请求本身不该被拦下，
+                    // 否则前端要先绕一圈刷新流程才能登出，接口内部凭 RT 仍能定位会话
+                    "/auth/logout",
                     "/article/list",
                     "/article/*",
                     "/article/hot",
