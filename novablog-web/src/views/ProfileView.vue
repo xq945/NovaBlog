@@ -7,6 +7,7 @@ import { getProfile, updateProfile } from '../api/user'
 import { uploadFile } from '../api/upload'
 import { getSessions, kickSession, kickOtherSessions } from '../api/session'
 import { useUserStore } from '../stores'
+import { clearSession } from '../utils/session'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -275,8 +276,8 @@ const handleKickSession = async (row) => {
     const res = await kickSession(row.sid)
     if (res.code === 200) {
       if (res.data?.current) {
-        // 踢的是本机：直接清理登录态回登录页，不必等下一次请求 401
-        userStore.clearToken()
+        // 踢的是本机：服务端已撤销会话并清除 Cookie，本地同步清理后回登录页
+        clearSession()
         router.push('/login')
         return
       }

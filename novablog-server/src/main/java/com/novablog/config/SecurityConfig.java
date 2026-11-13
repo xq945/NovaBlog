@@ -1,9 +1,11 @@
 package com.novablog.config;
 
 import com.novablog.security.AccessDeniedHandlerImpl;
+import com.novablog.security.AuthOriginFilter;
 import com.novablog.security.AuthenticationEntryPointImpl;
 import com.novablog.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -20,6 +22,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -27,8 +30,10 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AuthOriginFilter authOriginFilter;
     private final AccessDeniedHandlerImpl accessDeniedHandler;
     private final AuthenticationEntryPointImpl authenticationEntryPoint;
+    private final AuthSecurityProperties authSecurityProperties;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -72,6 +77,9 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            // 来源校验必须在认证之前：Cookie 会被浏览器自动携带，
+            // 先确认请求确实来自可信前端，再谈令牌是否有效
+            .addFilterBefore(authOriginFilter, JwtAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class);
 
@@ -85,8 +93,22 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        // RT 走 Cookie 后，allowCredentials(true) 绝不能配通配 Origin：
+        // 那等于允许任意站点带着用户的 Cookie 读取响应，AccessToken 直接被读走。
+        // 这里与 Origin 校验共用同一份白名单
+        List<String> allowedOrigins = authSecurityProperties.getAllowedOrigins().stream()
+            .filter(origin -> origin != null && !origin.isBlank())
+            .filter(origin -> {
+                if ("*".equals(origin.trim())) {
+                    log.warn("auth.security.allowed-origins 中的 * 已被忽略：携带凭据的 CORS 不允许通配来源");
+                    return false;
+                }
+                return true;
+            })
+            .toList();
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

@@ -29,15 +29,13 @@ export function login(data) {
 }
 
 /**
- * 登出：撤销整个服务端会话。
- * 带上 refreshToken 是因为 AccessToken 可能已过期，后端需要靠它定位会话
- * @param {string} refreshToken - 当前 RefreshToken
+ * 登出：撤销整个服务端会话并清除 HttpOnly Cookie。
+ * RefreshToken 由浏览器自动携带，前端不需要也不能读取它
  */
-export function logout(refreshToken) {
+export function logout() {
   return request({
     url: '/auth/logout',
-    method: 'post',
-    data: { refreshToken }
+    method: 'post'
   })
 }
 

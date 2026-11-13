@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login } from '../api/user'
 import { useUserStore } from '../stores'
+import { setSessionHint } from '../utils/session'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -48,9 +49,12 @@ const handleLogin = async () => {
     })
     if (res.code === 200) {
       ElMessage.success('登录成功')
-      const { token, refreshToken, userInfo } = res.data
-      userStore.setToken(token, refreshToken)
+      // RefreshToken 在 HttpOnly Cookie 里，响应体只返回 AccessToken；
+      // 置一个本地提示，让下次页面加载知道可以直接尝试静默续期
+      const { token, userInfo } = res.data
+      userStore.setToken(token)
       userStore.setUserInfo(userInfo)
+      setSessionHint(true)
       router.push('/')
     } else {
       ElMessage.error(res.message || '登录失败')

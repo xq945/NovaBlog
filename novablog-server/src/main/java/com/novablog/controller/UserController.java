@@ -15,6 +15,7 @@ import com.novablog.mapper.ArticleFavoriteMapper;
 import com.novablog.mapper.ArticleMapper;
 import com.novablog.mapper.UserFollowMapper;
 import com.novablog.mapper.UserMapper;
+import com.novablog.security.AuthCookieService;
 import com.novablog.service.ArticleService;
 import com.novablog.service.AuthService;
 import com.novablog.service.SessionService;
@@ -23,6 +24,7 @@ import com.novablog.convert.UserVOAssembler;
 import com.novablog.vo.AdminUserVO;
 import com.novablog.vo.ArticleVO;
 import com.novablog.vo.UserProfileVO;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -60,21 +62,33 @@ public class UserController {
     private final SessionService sessionService;
     private final ArticleFavoriteMapper articleFavoriteMapper;
     private final UserFollowMapper userFollowMapper;
+    private final AuthCookieService authCookieService;
 
     /**
      * 用户注册，委托给 AuthService
+     *
+     * <p>这是前端的兼容入口，与 /auth/register 行为一致：
+     * RefreshToken 只写 HttpOnly Cookie，响应体只留 AccessToken
      */
     @PostMapping("/register")
-    public Result<Map<String, Object>> register(@RequestBody RegisterDTO registerDTO) {
-        return Result.success(authService.register(registerDTO));
+    public Result<Map<String, Object>> register(@RequestBody RegisterDTO registerDTO,
+                                                HttpServletResponse response) {
+        Map<String, Object> data = authService.register(registerDTO);
+        authCookieService.moveRefreshTokenToCookie(data, response);
+        return Result.success(data);
     }
 
     /**
      * 用户登录，委托给 AuthService
+     *
+     * <p>与 /auth/login 行为一致，RefreshToken 只写 HttpOnly Cookie
      */
     @PostMapping("/login")
-    public Result<Map<String, Object>> login(@RequestBody LoginDTO loginDTO) {
-        return Result.success(authService.login(loginDTO));
+    public Result<Map<String, Object>> login(@RequestBody LoginDTO loginDTO,
+                                             HttpServletResponse response) {
+        Map<String, Object> data = authService.login(loginDTO);
+        authCookieService.moveRefreshTokenToCookie(data, response);
+        return Result.success(data);
     }
 
     /**

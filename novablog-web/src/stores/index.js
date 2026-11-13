@@ -3,29 +3,24 @@ import { ref } from 'vue'
 
 /**
  * 用户状态管理
- * 管理登录状态、Token、用户信息
+ *
+ * AccessToken 只保存在内存中，不落 localStorage：
+ * XSS 得手也只能拿到当前页面这一次的短命令牌，RefreshToken 则在 HttpOnly Cookie 里，
+ * 脚本读不到。页面刷新后由 Cookie 静默续期重新换取 AT（见 utils/session.js）。
  */
 export const useUserStore = defineStore('user', () => {
-  // Token
-  const token = ref(localStorage.getItem('token') || '')
-  const refreshToken = ref(localStorage.getItem('refreshToken') || '')
+  // AccessToken：纯内存，随页面生命周期存在
+  const token = ref('')
 
-  // 用户信息（仅在内存中维护，不持久化到 localStorage）
+  // 用户信息（同样只在内存中维护）
   // 避免 token 过期后 userInfo 仍存在，导致页面错误显示登录状态
   const userInfo = ref(null)
 
   /**
-   * 设置 Token
+   * 设置 AccessToken
    */
-  const setToken = (newToken, newRefreshToken) => {
-    token.value = newToken
-    localStorage.setItem('token', newToken)
-    // 未返回新 RT 时不覆盖已有的：setItem 会把 undefined 存成字符串 "undefined"，
-    // 之后被当成有效令牌发出去，反而让整条刷新链路失效
-    if (newRefreshToken) {
-      refreshToken.value = newRefreshToken
-      localStorage.setItem('refreshToken', newRefreshToken)
-    }
+  const setToken = (newToken) => {
+    token.value = newToken || ''
   }
 
   /**
@@ -40,10 +35,7 @@ export const useUserStore = defineStore('user', () => {
    */
   const clearToken = () => {
     token.value = ''
-    refreshToken.value = ''
     userInfo.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
   }
 
   /**
@@ -55,7 +47,6 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     token,
-    refreshToken,
     userInfo,
     setToken,
     setUserInfo,

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '../stores'
 import { getProfile } from '../api/user'
+import { clearSession, restoreSession } from '../utils/session'
 
 const routes = [
   {
@@ -121,11 +122,13 @@ async function ensureUserInfo() {
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin
 
-  // 1. 同步检查 Token 是否存在
+  // 1. 需要登录时先确认会话可用：内存里有 AT 直接通过，
+  //    否则凭 RT Cookie 静默续期。force 表示忽略本地提示标记、以服务端为准，
+  //    避免标记丢失（清了 localStorage 但 Cookie 还在）时误跳登录页
   if (requiresAuth) {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      return next('/login')
+    const restored = await restoreSession({ force: true })
+    if (!restored) {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
     }
   }
 
@@ -137,8 +140,8 @@ router.beforeEach(async (to, from, next) => {
         return next('/')
       }
     } catch (error) {
-      const userStore = useUserStore()
-      userStore.clearToken()
+      // 确认拿不到用户信息说明会话不可用，连提示标记一起清掉
+      clearSession()
       return next('/login')
     }
   }

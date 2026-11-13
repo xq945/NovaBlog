@@ -140,6 +140,8 @@ openssl rand -base64 64
 
 其余需要关注的配置：MySQL 连接与 Redis 连接（本地默认值可直接用）、阿里云 OSS 的 endpoint / bucket / AccessKey（头像与文章封面上传依赖它）、`knife4j.enable`（接口文档默认关闭，置 true 后访问 `/doc.html`）。
 
+RefreshToken 通过 HttpOnly Cookie 传递，本地开发默认 `auth.cookie.secure=false`（http 下浏览器拒收 Secure Cookie）。线上 HTTPS 部署时把 `NOVABLOG_RT_COOKIE_SECURE` 置为 true，并通过 `NOVABLOG_ALLOWED_ORIGINS` 填写真实前端域名，多个用逗号分隔——该白名单同时用于 CORS 与登录/刷新接口的来源校验，不能配置成 `*`。如果前端域名与后端不同源，必须保证它们是同站（同一主域），否则 SameSite=Lax 的 Cookie 不会跨站发送；推荐直接用 Vite 代理或 Nginx 反代保持同源。
+
 AI 配置示例：
 
 ```yaml
@@ -253,10 +255,10 @@ Markdown 渲染正文、点赞按钮与嵌套评论系统。
 
 | 功能 | 接口 | 说明 |
 |------|------|------|
-| 登录 | `POST /auth/login` | 返回 AccessToken、RefreshToken 与用户信息 |
-| 注册 | `POST /auth/register` | 注册成功后直接返回登录令牌 |
-| 刷新令牌 | `POST /auth/refresh` | 用 RefreshToken 换发新的一对令牌，RefreshToken 同步轮换 |
-| 登出 | `POST /auth/logout` | 撤销当前会话，该会话的 AT 与 RT 一并失效 |
+| 登录 | `POST /auth/login` | 返回 AccessToken 与用户信息；RefreshToken 通过 HttpOnly Cookie 下发 |
+| 注册 | `POST /auth/register` | 注册成功后直接返回 AccessToken 并写入 RefreshToken Cookie |
+| 刷新令牌 | `POST /auth/refresh` | 凭 Cookie 中的 RefreshToken 换发新 AccessToken，RefreshToken 同步轮换并重写 Cookie |
+| 登出 | `POST /auth/logout` | 撤销当前会话，该会话的 AT 与 RT 一并失效，并清除 Cookie |
 | 当前用户 | `GET /auth/profile` | 需携带有效 AccessToken |
 | 登录设备 | `GET /auth/sessions` | 列出该账号全部活跃设备，标记本机 |
 | 退出指定设备 | `DELETE /auth/sessions/{sid}` | 被踢设备下一次请求时失效 |
@@ -410,19 +412,37 @@ Spring Security 以无状态（STATELESS）过滤链接管认证。`JwtAuthentic
 
 用户状态与权限不从令牌里读，而是每请求按 userId 回查数据库（用户状态、角色、权限共 3 条 SQL）。这换来的是禁用用户、调整角色权限后立即生效，无需等待令牌过期；令牌中只保留 userId、sid 这类标识，不承载权限快照。
 
+### 令牌如何存储与传输
+
+**AccessToken 只在前端内存**（Pinia），不写 localStorage。页面刷新后内存清空，启动时凭 RT Cookie 静默调一次 `/auth/refresh` 换回新的 AT，再安装路由并渲染——顺序不能反，否则路由守卫的首次导航会赶在恢复完成之前执行，把已登录用户误送到登录页。
+
+**RefreshToken 在 HttpOnly + SameSite=Lax Cookie 里**，前端 JS 完全读不到，XSS 即使得手也拿不走长期凭证。登录、注册、刷新的响应体都不含 `refreshToken` 字段；刷新时服务端重新 `Set-Cookie`，浏览器自动更新。Cookie 的 `Max-Age` 取令牌自身剩余有效期而不是固定 7 天——宽限分支复用旧 RT 时剩余时间可能只有几秒，写死会让 Cookie 比令牌活得久，留下「浏览器每次都带、服务端每次都拒」的无效窗口。
+
+几个容易踩的细节：
+
+- **Path 必须是 `/`**。浏览器看到的刷新地址可能是 `/api/auth/refresh`（Vite 代理或反向代理），若把 Path 收紧到 `/auth`，Cookie 根本不会随请求发送，表现为刷新页面即掉登录。
+- **本地开发必须 `secure=false`**。http://localhost 下浏览器会拒收 Secure Cookie；生产 HTTPS 环境通过 `NOVABLOG_RT_COOKIE_SECURE=true` 打开。
+- **清除 Cookie 时 Path 与 Domain 必须和写入时一致**，否则浏览器不会删除，因此写入与清除共用同一个构建方法。
+
+服务端仍然不存 RT 本体。JWT 自校验签名和过期时间，Redis 里只有三类「否定信息」：jti 黑名单、sid 撤销标记、宽限窗口内的轮换映射（详见下文 Redis 表）。整个系统唯一把 RT 明文写进存储的地方，就是那张只活 60 秒的轮换映射。
+
+**CSRF 防护**：Cookie 会被浏览器自动携带，因此登录/注册/刷新/登出四条 POST 路径增加来源校验——`Origin`（缺失时回退 `Referer`）必须命中 `auth.security.allowed-origins` 白名单，浏览器明确声明 `Sec-Fetch-Site: cross-site` 的直接拒绝，两者都没有的请求（curl、测试脚本、非浏览器客户端）放行。CORS 同步从「允许任意 Origin + 允许凭据」收紧为显式白名单：携带凭据的 CORS 配通配来源，等于允许任意站点带着用户的 Cookie 读取响应、直接拿走 AccessToken。
+
+过渡期 `auth.cookie.allow-header-fallback` 默认为 true，刷新接口仍接受 `Authorization: Bearer <RT>`，便于前后端分批升级；全部切换后可置 false 并删除兼容分支。
+
 ### 令牌轮换与失效
 
 一次登录派生一个会话标识 sid，本次登录的 AccessToken 与 RefreshToken 共享它；后续每次刷新轮换出的新 RT 沿用同一 sid，把一次登录衍生出的历次令牌串成一个家族，以便整体撤销。
 
 **每次刷新都轮换**。RT 用过一次即作废，把泄露窗口从「7 天」压缩到「一次刷新的间隔」，旧 RT 立即进入黑名单，即使此前已被截获也无法再用。
 
-**宽限窗口收敛并发刷新**。多个标签页共享同一份 AT，会在同一时刻一起刷新。若不加处理，第一个请求轮换成功后，其余请求手里的旧 RT 立刻变成「重放」，真实用户会被自己踢下线。因此给旧 RT 保留 60 秒宽限窗口，用 `SETNX` 记录「旧 RT jti → 新 RT」的映射：并发请求读到映射后复用同一张新 RT，而非各自签发一张，保证一个旧 RT 只对应一张新 RT。
+**宽限窗口收敛并发刷新**。多个标签页各自持有一份内存 AT，但共享浏览器里同一个 RT Cookie，会在同一时刻一起刷新。若不加处理，第一个请求轮换成功后，其余请求手里的旧 RT 立刻变成「重放」，真实用户会被自己踢下线。因此给旧 RT 保留 60 秒宽限窗口，用 `SETNX` 记录「旧 RT jti → 新 RT」的映射：并发请求读到映射后复用同一张新 RT，而非各自签发一张，保证一个旧 RT 只对应一张新 RT。
 
 **超窗口重放判定为泄露**。宽限窗口外旧 RT 再次出现时，合法客户端手里早已是新令牌，只能判定令牌泄露。此时撤销整个会话家族，让攻击者与真实用户一起重新登录。
 
-**登出撤销整个会话**。按 sid 写入撤销标记，该会话的 AT、RT 及历次轮换出的令牌一并立即失效；AT 恰好过期时凭请求体中的 RT 定位会话，所以登出接口本身对未认证请求放行，否则前端得先绕一圈刷新流程才能登出。
+**登出撤销整个会话**。按 sid 写入撤销标记，该会话的 AT、RT 及历次轮换出的令牌一并立即失效；AT 恰好过期时凭 Cookie 中的 RT 定位会话，所以登出接口本身对未认证请求放行，否则前端得先绕一圈刷新流程才能登出。无论服务端撤销是否成功，响应都会下发清除 Cookie 的指令——登出的用户意图就是结束本浏览器的登录态，不能把 RT 留在客户端。
 
-> 兼容说明：不含 sid 的存量令牌无法按会话撤销，登出时退化为单令牌拉黑（AT 与 RT 一起拉黑），待其自然过期（AT 2 小时、RT 7 天）后该分支即失效。
+> 兼容说明：不含 sid 的存量令牌无法按会话撤销，登出时退化为单令牌拉黑（AT 与 RT 一起拉黑），待其自然过期（AT 30 分钟、RT 7 天）后该分支即失效。
 
 ### 登录设备与在线状态
 
@@ -452,7 +472,7 @@ Spring Security 以无状态（STATELESS）过滤链接管认证。`JwtAuthentic
 
 `GET /notification/stream` 是一条 SSE 长连接，服务端按 userId 维护连接集合，每条连接一个独立的 sink，多标签页互不干扰。服务端每 25 秒发一次心跳，同时检查该连接的会话是否已被撤销——SSE 只在握手时校验一次 JWT，之后不会自动失效，所以登出、被踢、被禁用之后必须由心跳主动断开，否则用户已经下线、连接还在收消息。
 
-客户端不使用 `EventSource`：它无法携带 `Authorization` 头，只能把 token 拼在 URL 上，而 URL 会进网关日志和 Referer。前端改用 `fetch` + `ReadableStream` 手动解析 SSE，token 走请求头，并实现了指数退避重连；连续失败时降级为每分钟轮询未读数。
+客户端不使用 `EventSource`：它无法携带 `Authorization` 头，只能把 token 拼在 URL 上，而 URL 会进网关日志和 Referer。通知流与聊天流都改用 `fetch` + `ReadableStream` 手动解析 SSE，token 走请求头；通知流实现了指数退避重连，连续失败时降级为每分钟轮询未读数。长连接期间 AT 过期是常态，收到 401 时先静默续期一次再重连，而不是就此断开。
 
 > **单实例假设**：通知在哪个实例产生，就只推给连在该实例上的用户。多实例部署需要加一层 Redis Pub/Sub 广播，当前版本未实现。推送本身不保证送达——通知行已经在数据库里，客户端重连后拉取列表即可补偿。
 
@@ -467,7 +487,7 @@ Spring Security 以无状态（STATELESS）过滤链接管认证。`JwtAuthentic
 
 - **密码存储**：使用 BCrypt 哈希，强度因子 10
 - **权限控制**：管理员专属接口以 `@RequireAdmin` + AOP 切面拦截，角色取自 RBAC 表实时查询的结果；文章、评论等资源的归属校验在业务层统一处理（作者本人或管理员），权限标识粒度的校验能力已实现但尚未在这些接口上启用
-- **令牌参数**：AccessToken 2 小时，RefreshToken 7 天，密钥为 Base64 编码的随机字节（解码后至少 256 位）
+- **令牌参数**：AccessToken 30 分钟（只存前端内存），RefreshToken 7 天（HttpOnly Cookie），密钥为 Base64 编码的随机字节（解码后至少 256 位）
 - **文件上传**：限制图片格式（jpg/png/gif/webp），单文件不超过 5MB，使用随机文件名存储于 OSS
 - **公开路径**：匿名可访问的只有显式白名单与「纯数字 ID」的详情页（`/article/{id:[0-9]+}`、`/user/{id:[0-9]+}`）。早期的 `/article/*`、`/user/*` 通配会把 `/article/import`、`/user/profile` 这类单段路径一并放行，已收紧
 - **SQL 注入**：MyBatis-Plus 使用预编译参数

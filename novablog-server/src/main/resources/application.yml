@@ -90,13 +90,15 @@ mybatis-plus:
 # secret 必须为 Base64 编码的随机字节（至少 256 位），生成命令：openssl rand -base64 64
 jwt:
   secret: ${NOVABLOG_JWT_SECRET}
-  access-expiration: 7200000       # Access Token 过期时间：2 小时
-  refresh-expiration: 604800000    # Refresh Token 过期时间：7 天
-  # RefreshToken 轮换宽限窗口。多个标签页共享同一个 AccessToken，会几乎同时刷新，
+  # Access Token 只存前端内存，短有效期把令牌泄露后的可用窗口压到最小；
+  # 过期后由 RefreshToken Cookie 静默续期，用户无感
+  access-expiration: ${NOVABLOG_JWT_ACCESS_EXPIRATION:1800000}   # 30 分钟
+  refresh-expiration: ${NOVABLOG_JWT_REFRESH_EXPIRATION:604800000}  # 7 天
+  # RefreshToken 轮换宽限窗口。多个标签页共享同一张 Cookie RT，会几乎同时刷新，
   # 窗口内的重复刷新复用已签发的新 RT；超窗口仍未携新令牌复现，即判定为泄露并撤销整个会话
-  rotation-grace: 60000
+  rotation-grace: ${NOVABLOG_JWT_ROTATION_GRACE:60000}
 
-# 7. 会话管理配置
+# 7. 认证与会话管理配置
 auth:
   session:
     # 单账号允许的并发会话数，超出时踢掉最早登录的设备
@@ -106,6 +108,22 @@ auth:
     touch-interval-seconds: 60
     # 在线判定窗口（秒）：窗口内带有效 AccessToken 发过请求即视为在线
     online-window-seconds: 300
+  # RefreshToken 通过 HttpOnly Cookie 下发，前端 JS 不接触该值
+  cookie:
+    refresh-token-name: ${NOVABLOG_RT_COOKIE_NAME:nb_refresh_token}
+    # 默认 /：浏览器看到的刷新地址可能是 /api/auth/refresh，收紧到 /auth 会导致 Cookie 不发送
+    path: ${NOVABLOG_RT_COOKIE_PATH:/}
+    # 生产（HTTPS）必须置 true；本地 http://localhost 下浏览器会拒收 Secure Cookie
+    secure: ${NOVABLOG_RT_COOKIE_SECURE:false}
+    same-site: ${NOVABLOG_RT_COOKIE_SAMESITE:Lax}
+    # 留空表示 host-only，localhost 场景最稳；跨子域部署时再配置
+    domain: ${NOVABLOG_RT_COOKIE_DOMAIN:}
+    # 过渡期兼容 Authorization: Bearer <RT>，前端全部升级后可置 false
+    allow-header-fallback: ${NOVABLOG_RT_ALLOW_HEADER_FALLBACK:true}
+  security:
+    # 允许调用登录/刷新/登出的前端来源，同时作为 CORS 白名单。
+    # 携带凭据的 CORS 不允许通配，配置 * 会被忽略
+    allowed-origins: ${NOVABLOG_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080}
 
 # 8. SpringDoc / Knife4j API 文档配置
 knife4j:

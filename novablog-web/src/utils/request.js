@@ -1,13 +1,16 @@
 import axios from 'axios'
 import { useUserStore } from '../stores'
 import { handleApiError } from './errorHandler'
+import { clearSession, isAuthError, refreshAccessToken } from './session'
 
 // 支持通过环境变量切换 API 地址，用于内网穿透等场景
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const request = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000
+  timeout: 10000,
+  // RefreshToken 在 HttpOnly Cookie 里，必须允许浏览器携带凭据
+  withCredentials: true
 })
 
 // 是否正在刷新 Token
@@ -51,8 +54,7 @@ function isSessionInvalid(res) {
  * 清除登录状态并通知全局弹出登录
  */
 function redirectToLogin(message) {
-  const userStore = useUserStore()
-  userStore.clearToken()
+  clearSession()
   window.dispatchEvent(new CustomEvent('show-login', {
     detail: { message: message || '登录已过期，请重新登录' }
   }))
@@ -91,26 +93,18 @@ request.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 401 且不是刷新请求本身，尝试自动续期
-    if (res?.code === 401 && !originalRequest._isRefreshRequest) {
-      const userStore = useUserStore()
-
-      // RefreshToken 每次刷新都会轮换，且可能已被其他标签页轮换过。
-      // 内存里的 store 是本页打开时的快照，必须优先读 localStorage 取全局最新值，
-      // 否则会拿着早已作废的旧 RT 去刷新，被服务端判定为令牌泄露并撤销整个会话
-      const latestRefreshToken = localStorage.getItem('refreshToken') || userStore.refreshToken
-
-      // 没有 refreshToken，直接清除登录状态
-      if (!latestRefreshToken) {
-        redirectToLogin(res.message)
-        return Promise.reject(error)
-      }
+    // 受保护接口的 401（过滤链返回，HTTP 401 + body.code=401）触发静默续期。
+    // _retry 保证每个请求最多重试一次，避免刷新后仍 401 时形成请求风暴
+    const isUnauthorized = res?.code === 401 || error.response?.status === 401
+    if (isUnauthorized && !originalRequest._retry) {
+      originalRequest._retry = true
 
       // 正在刷新中，将当前请求加入队列等待
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           addRefreshSubscriber({
             resolve: (newToken) => {
+              originalRequest.headers = originalRequest.headers || {}
               originalRequest.headers.Authorization = 'Bearer ' + newToken
               resolve(request(originalRequest))
             },
@@ -123,37 +117,26 @@ request.interceptors.response.use(
       isRefreshing = true
 
       try {
-        // 调用刷新接口，携带 Refresh Token
-        const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, null, {
-          headers: { Authorization: 'Bearer ' + latestRefreshToken },
-          timeout: 10000
-        })
+        // 刷新统一走 session.js 的单例 Promise：
+        // RT 在 Cookie 里，前端不再读取或传递它
+        const newToken = await refreshAccessToken()
 
-        const refreshData = refreshRes.data
+        // 重试队列中所有等待的请求
+        onTokenRefreshed(newToken)
 
-        if (refreshData.code === 200) {
-          const { token, refreshToken, userInfo } = refreshData.data
-
-          // 更新 Pinia Store
-          userStore.setToken(token, refreshToken)
-          if (userInfo) {
-            userStore.setUserInfo(userInfo)
-          }
-
-          // 重试队列中所有等待的请求
-          onTokenRefreshed(token)
-
-          // 重试当前请求
-          originalRequest.headers.Authorization = 'Bearer ' + token
-          return request(originalRequest)
-        } else {
-          // 刷新接口返回非 200，清除状态
-          throw new Error(refreshData.message || '刷新失败')
-        }
+        // 重试当前请求
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = 'Bearer ' + newToken
+        return request(originalRequest)
       } catch (refreshError) {
-        // 刷新失败（包括 refreshToken 过期、网络错误等），清除登录状态并放行排队请求
         onTokenRefreshFailed(refreshError)
-        redirectToLogin('登录已过期，请重新登录')
+        if (isAuthError(refreshError)) {
+          // 确认性失效：清状态回登录
+          redirectToLogin(refreshError.message)
+        } else {
+          // 网络抖动或服务端故障：会话可能仍有效，不踢人，只让本次请求失败
+          handleApiError(refreshError, { silent: true })
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

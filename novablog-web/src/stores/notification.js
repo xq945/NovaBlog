@@ -44,6 +44,11 @@ export const useNotificationStore = defineStore('notification', () => {
         refreshUnread()
         const who = payload?.sender?.nickname
         ElMessage.info(who ? `${who} ${payload.content}` : '收到一条新通知')
+      },
+      // 流因会话失效彻底停止时复位状态：
+      // 否则重新登录后 start() 会被 connected 早退挡住，通知流整页都不再恢复
+      onFatal: () => {
+        connected.value = false
       }
     })
 

@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores'
 import { useNotificationStore } from '../stores/notification'
 import { logout } from '../api/user'
+import { clearSession } from '../utils/session'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,14 +50,15 @@ const handleLogout = async () => {
   try {
     // 必须先等接口返回再 reload，否则页面跳转会中断在途请求，服务端收不到撤销指令。
     // 加超时兜底：网络挂起时不至于让用户卡在登出按钮上
+    // RefreshToken 由浏览器通过 HttpOnly Cookie 自动携带
     await Promise.race([
-      logout(userStore.refreshToken),
+      logout(),
       new Promise((resolve) => setTimeout(resolve, 2000))
     ])
   } catch {
     // 服务端不可达不阻塞本地登出，清掉本地状态即可
   }
-  userStore.clearToken()
+  clearSession()
   ElMessage.success('已退出登录')
   window.location.reload()
 }
